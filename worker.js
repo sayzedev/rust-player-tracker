@@ -495,6 +495,24 @@ function rpFloat(value) {
   return new DataView(value.buffer, value.byteOffset, 4).getFloat32(0, true);
 }
 function rpNumber(value) { return value === undefined ? 0 : Number(value); }
+function rustGridLocation(x, y, mapSize) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || mapSize <= 0) return "неизвестна";
+  const gridSize = 146.25;
+  const remainder = mapSize % gridSize;
+  const correctedSize = remainder < 120 ? mapSize - remainder : mapSize + gridSize - remainder;
+  const columns = Math.ceil(correctedSize / gridSize);
+  const col = Math.floor(x / gridSize);
+  const rowFromBottom = Math.floor(y / gridSize);
+  if (col < 0 || rowFromBottom < 0 || col >= columns || rowFromBottom >= columns) return "за пределами сетки";
+  let n = col + 1, letters = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  const row = columns - 1 - rowFromBottom;
+  return letters + row;
+}
 function rpDecodeResponse(buffer) {
   const outer = rpDecode(new Uint8Array(buffer));
   const responseBytes = rpOne(outer, 1);
@@ -985,9 +1003,52 @@ export class RustPlusCloud {
     if (!this.ws || this.ws.readyState !== 1) {
       this.connecting = false;
       await this.ensureConnected();
-    } else {
-      try { await this.sendRequest(8); } catch { try { this.ws.close(); } catch {} }
       this.schedule();
+      return;
+    }
+
+    // Poll Rust+ team state in the background. Rust+ exposes alive/dead and
+    // coordinates in TeamInfo; keep the last alive position for death notices.
+    try {
+      const info = await this.sendRequest(8);
+      if (info.type === "info") this.lastInfo = info.info;
+      const team = await this.sendRequest(11);
+      if (team.type === "team") await this.processTeamDeathUpdates(team.team, cfg);
+    } catch (e) {
+      this.lastError = String(e?.message || e).slice(0, 200);
+    }
+    this.schedule(30000);
+  }
+
+  async processTeamDeathUpdates(team, cfg) {
+    const members = Array.isArray(team?.members) ? team.members : [];
+    if (!members.length) return;
+    const key = "rustplus_team_alive_snapshot";
+    const previous = await this.ctx.storage.get(key);
+    const next = {};
+    const notices = [];
+    for (const member of members) {
+      const id = String(member.steamid || "");
+      if (!/^\\d{17}$/.test(id)) continue;
+      const old = previous && previous[id];
+      const x = Number(member.x || 0);
+      const y = Number(member.y || 0);
+      next[id] = {
+        name: String(member.name || "Игрок"),
+        alive: Boolean(member.alive),
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0
+      };
+      if (old && old.alive === true && member.alive === false) {
+        const location = rustGridLocation(old.x, old.y, Number(this.lastInfo?.map_size || 0));
+        const who = id === cfg.playerId ? "Ты погиб" : (old.name + " погиб");
+        notices.push("☠️ " + who + ". Последняя позиция: " + location);
+      }
+    }
+    await this.ctx.storage.put(key, next);
+    for (const notice of notices.slice(0, 4)) {
+      try { await this.sendRequest(13, rpEncodeTextMessage(notice.slice(0, 155))); }
+      catch (e) { this.lastError = String(e?.message || e).slice(0, 200); break; }
     }
   }
 
