@@ -1366,7 +1366,7 @@ export class RustPlusCloud {
       if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
       let payload; try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
       const name = String(payload?.name || "").trim().slice(0, 40);
-      const ids = [...new Set((Array.isArray(payload?.device_ids) ? payload.device_ids : []).map(Number).filter(id => Number.isSafeInteger(id) && id > 0 && id <= 4294967295))].slice(0, 30);
+      const ids = [...new Set((Array.isArray(payload?.device_ids) ? payload.device_ids : []).map(Number).filter(id => Number.isSafeInteger(id) && id > 0 && id <= 4294967295))].slice(0, 20);
       const devices = await this.ctx.storage.get("rustplus_devices") || [];
       const validIds = ids.filter(id => devices.some(device => Number(device.id) === id && device.type === "switch"));
       if (!name || !validIds.length) return Response.json({ error: "invalid_group", message: "Укажи название и хотя бы один добавленный Smart Switch." }, { status: 400 });
@@ -1395,12 +1395,14 @@ export class RustPlusCloud {
         const device = devices.find(item => Number(item.id) === Number(id) && item.type === "switch");
         if (!device) continue;
         try {
-          await this.sendRequest(15, rpEncodeFlag(payload.value), Number(id));
+          const changed = await this.sendRequest(15, rpEncodeFlag(payload.value), Number(id));
+          if (changed.type === "error") throw new Error(changed.error);
+          await new Promise(resolve => setTimeout(resolve, 250));
           const state = await this.sendRequest(14, new Uint8Array(), Number(id));
           if (state.type === "entity") { device.payload = state.entity.payload; device.updated_at = Date.now(); }
           results.push({ id, ok: true });
         } catch (error) { results.push({ id, ok: false, error: String(error?.message || error) }); }
-        await new Promise(resolve => setTimeout(resolve, 350));
+        await new Promise(resolve => setTimeout(resolve, 700));
       }
       await this.ctx.storage.put("rustplus_devices", devices);
       return Response.json({ updated: results.filter(item => item.ok).length, results, devices, groups });
