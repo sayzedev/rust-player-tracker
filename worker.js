@@ -38,7 +38,7 @@ function cors(origin) {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Vary": "Origin"
   };
 }
@@ -134,6 +134,17 @@ export default {
 
     const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info)$/);
     if (rustPlusMatch) {
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const rustPlusSession = env.STEAM_SESSION_SECRET
+        ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
+        : null;
+      const pairedSteamId = String(env.RUSTPLUS_PLAYER_ID || "").trim();
+      if (!rustPlusSession || !pairedSteamId || rustPlusSession.steamid !== pairedSteamId) {
+        return json({
+          error: "rustplus_auth_required",
+          message: "Войди через Steam с аккаунтом, привязанным к Rust+."
+        }, 401, origin);
+      }
       if (env.RUSTPLUS_CLOUD) {
         const id = env.RUSTPLUS_CLOUD.idFromName("primary-rust-server");
         const stub = env.RUSTPLUS_CLOUD.get(id);
