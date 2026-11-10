@@ -180,9 +180,7 @@ export default {
       }
       if (env.RUSTPLUS_CLOUD) {
         const route = rustPlusMatch[1];
-        const id = env.RUSTPLUS_CLOUD.idFromName(route === "status"
-          ? "rustplus-user:" + rustPlusSession.steamid
-          : "primary-rust-server");
+        const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + rustPlusSession.steamid);
         const stub = env.RUSTPLUS_CLOUD.get(id);
         const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/" + route);
         const body = await cloudResponse.text();
@@ -612,22 +610,12 @@ export class RustPlusCloud {
     if (path === "status" || path === "connect") {
       const authToken = await this.ctx.storage.get("rustplus_auth_token");
       const steamId = await this.ctx.storage.get("rustplus_steam_id");
-      if (authToken && steamId) {
-        return Response.json({
-          service: "rustplus-cloud",
-          auth_token_saved: true,
-          steam_id: steamId,
-          companion_connected: false,
-          pairing_required: true,
-          state: "auth_saved",
-          message: "Авторизация Rust+ сохранена. Ожидается регистрация push-устройства и привязка игрового сервера."
-        });
-      }
       await this.ensureConnected();
       const configured = Boolean(this.config());
       const connected = this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1);
       return Response.json({
         service: "rustplus-cloud", state: this.state,
+        auth_token_saved: Boolean(authToken && steamId),
         configured, connected, companion_connected: connected,
         backend_configured: true,
         pairing_required: !configured,
@@ -635,11 +623,11 @@ export class RustPlusCloud {
         message: connected
           ? "Облачный Rust+ Companion подключён."
           : !configured
-            ? "Подключи Rust+ через расширение браузера."
+            ? (authToken ? "Авторизация сохранена. Нужны данные Pair with Server." : "Сначала подключи Rust+ через Facepunch.")
             : this.state === "connecting"
               ? "Облачный Companion подключается к серверу Rust+."
               : this.lastError || "Облачный Companion пока не подключён.",
-        free_tier_note: "Проверяется устойчивость постоянного соединения в пределах бесплатных лимитов Cloudflare."
+        free_tier_note: "Постоянное соединение может расходовать дневной лимит Cloudflare Free."
       });
     }
     await this.ensureConnected();
