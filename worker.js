@@ -913,6 +913,11 @@ export class RustPlusCloud {
             this.lastDevices = updated;
             this.lastEntityEvents = [...this.lastEntityEvents, { entity_id: id, payload: result.payload, at: Date.now() }].slice(-50);
             await this.ctx.storage.put("rustplus_entity_events", this.lastEntityEvents);
+            const device = updated.find(item => Number(item.id) === id);
+            if (device?.type === "alarm" && result.payload?.value === true) {
+              const notice = ("🚨 Smart Alarm: " + String(device.name || ("Устройство " + id))).slice(0, 155);
+              try { await this.sendRequest(13, rpEncodeTextMessage(notice)); } catch {}
+            }
           }
           else if (result.type === "teamChat") {
             this.lastChat = result.messages || [];
@@ -1383,6 +1388,7 @@ export class RustPlusCloud {
     }
 
     if (path === "devices") return Response.json({ devices: await this.ctx.storage.get("rustplus_devices") || [] });
+    if (path === "events") return Response.json({ events: await this.ctx.storage.get("rustplus_entity_events") || [] });
     if (path === "time") {
       const result = await this.sendRequest(9);
       if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
