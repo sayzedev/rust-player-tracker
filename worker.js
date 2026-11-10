@@ -890,7 +890,7 @@ export class RustPlusCloud {
 
   async handleTeamChatCommand(entry) {
     const text = String(entry?.message || "").trim();
-    if (!text.startsWith("/")) return;
+    if (!text.startsWith("!")) return;
     const senderId = String(entry?.steamid || "");
     const now = Date.now();
     const previous = this.commandTimestamps.get(senderId) || 0;
@@ -900,14 +900,14 @@ export class RustPlusCloud {
     const command = text.toLowerCase().split(/\s+/)[0];
     let reply = "";
     try {
-      if (command === "/help") {
+      if (command === "!help") {
         reply = "Rust Bot: /help /online /team /server /map";
-      } else if (command === "/online" || command === "/team" || command === "/who") {
+      } else if (command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
         else {
           const members = Array.isArray(result.team?.members) ? result.team.members : [];
-          if (command === "/online") {
+          if (command === "!online") {
             const online = members.filter(member => member.online);
             const names = online.slice(0, 4).map(member => member.name || "Игрок");
             reply = ("Онлайн команды: " + online.length + "/" + members.length + (names.length ? " · " + names.join(", ") : "")).slice(0, 155);
@@ -916,11 +916,11 @@ export class RustPlusCloud {
             reply = ("Команда: " + names.join(", ") + (members.length > 4 ? " и ещё " + (members.length - 4) : "")).slice(0, 155);
           }
         }
-      } else if (command === "/server" || command === "/status") {
+      } else if (command === "!server" || command === "!status") {
         const result = await this.sendRequest(8);
         const info = result.info || {};
         reply = ("Сервер: " + (info.name || "Rust") + " · Игроки: " + (info.players ?? "?") + "/" + (info.max_players ?? "?") + " · Очередь: " + (info.queued_players ?? 0)).slice(0, 155);
-      } else if (command === "/map") {
+      } else if (command === "!map") {
         const result = await this.sendRequest(8);
         const info = result.info || {};
         reply = ("Карта: " + (info.map || "открой вкладку Rust+ на сайте") + ". Метки и изображение доступны на сайте.").slice(0, 155);
