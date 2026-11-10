@@ -73,6 +73,23 @@ function rustRequest(method) {
         if (finished) return true;
         finished = true;
         clearTimeout(timeout);
+        if (method === "getMap") {
+          const map = message?.response?.map || message?.map || null;
+          const rawImage = map?.jpgImage;
+          if (map && rawImage) {
+            let imageBuffer;
+            if (Buffer.isBuffer(rawImage)) imageBuffer = rawImage;
+            else if (Array.isArray(rawImage)) imageBuffer = Buffer.from(rawImage);
+            else if (rawImage?.type === "Buffer" && Array.isArray(rawImage.data)) imageBuffer = Buffer.from(rawImage.data);
+            else imageBuffer = Buffer.from(rawImage);
+            return res.json({
+              width: map.width || null,
+              height: map.height || null,
+              image_data_url: "data:image/jpeg;base64," + imageBuffer.toString("base64"),
+              monuments: map.monuments || []
+            });
+          }
+        }
         res.json(message);
         return true;
       });
