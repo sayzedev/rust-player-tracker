@@ -184,7 +184,7 @@ export default {
 
     if (url.pathname === "/api/rustplus/pairing/clear") {
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
-      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
       const session = env.STEAM_SESSION_SECRET
         ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
         : null;
