@@ -254,7 +254,7 @@ export default {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
-    const rustPlusMatch = url.pathname.match(/^\\/api\\/rustplus\\/(status|map|markers|team|info|chat)$/);
+    const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info|chat)$/);
     if (rustPlusMatch) {
       const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
       const rustPlusSession = env.STEAM_SESSION_SECRET
