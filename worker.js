@@ -1028,7 +1028,7 @@ export class RustPlusCloud {
     await this.ctx.storage.put("rustplus_processed_commands", [...processed, commandKey].slice(-150));
 
     // Rust+ broadcasts may include extra text around the player's command.
-    const commandMatch = text.match(/!(timer|help|p|online|team|who|pop|status|map)\b/i);
+    const commandMatch = text.match(/!(timer|help|p|online|team|who|pop|status|map|time|switch)\b/i);
     const command = commandMatch ? "!" + commandMatch[1].toLowerCase() : "";
     let reply = "";
     try {
