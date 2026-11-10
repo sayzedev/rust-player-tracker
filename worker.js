@@ -34,6 +34,49 @@ export default {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
+    const statsMatch = url.pathname.match(/^\/api\/players\/(\d{17})\/stats$/);
+    if (statsMatch) {
+      if (!env.STEAM_API_KEY) {
+        return json({ error: "steam_api_key_not_configured", message: "Добавь STEAM_API_KEY в секреты Worker." }, 503, origin);
+      }
+      const steamid = statsMatch[1];
+      try {
+        const params = new URLSearchParams({
+          key: env.STEAM_API_KEY,
+          steamid,
+          include_appinfo: "0",
+          include_played_free_games: "1",
+          appids_filter: "252490",
+          format: "json"
+        });
+        const upstream = await fetch("https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?" + params.toString(), {
+          headers: { "Accept": "application/json" },
+          cf: { cacheTtl: 300, cacheEverything: true }
+        });
+        if (!upstream.ok) {
+          return json({ error: "steam_stats_api_error", message: "Steam не вернул статистику: " + upstream.status }, 502, origin);
+        }
+        const data = await upstream.json();
+        const response = data?.response;
+        if (!response || !Array.isArray(response.games)) {
+          return json({ available: false, message: "Статистика игр скрыта настройками приватности Steam или недоступна." }, 200, origin, "public, max-age=300");
+        }
+        const rust = response.games.find(game => Number(game.appid) === 252490);
+        if (!rust) {
+          return json({ available: true, owned_or_visible: false, message: "Steam не показывает Rust в списке игр этого профиля." }, 200, origin, "public, max-age=300");
+        }
+        return json({
+          available: true,
+          owned_or_visible: true,
+          playtime_minutes: Number(rust.playtime_forever || 0),
+          playtime_2weeks_minutes: Number(rust.playtime_2weeks || 0),
+          last_played: rust.rtime_last_played ? Number(rust.rtime_last_played) : null
+        }, 200, origin, "public, max-age=300");
+      } catch {
+        return json({ error: "steam_stats_unavailable", message: "Не удалось получить статистику Steam." }, 502, origin);
+      }
+    }
+
     const playerMatch = url.pathname.match(/^\/api\/players\/(\d{17})$/);
     if (playerMatch) {
       if (!env.STEAM_API_KEY) {
