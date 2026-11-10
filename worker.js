@@ -820,7 +820,8 @@ export class RustPlusCloud {
         this.connectedAt = new Date().toISOString();
         this.lastError = null;
         this.sendRequest(8).catch(() => {});
-        this.schedule();
+        // Prime the alive snapshot shortly after connecting, then poll every 30 seconds.
+        this.schedule(5000);
       });
       ws.addEventListener("message", async event => {
         if (this.ws !== ws) return;
@@ -1029,7 +1030,7 @@ export class RustPlusCloud {
     const notices = [];
     for (const member of members) {
       const id = String(member.steamid || "");
-      if (!/^\\d{17}$/.test(id)) continue;
+      if (!/^\d{17}$/.test(id)) continue;
       const old = previous && previous[id];
       const x = Number(member.x || 0);
       const y = Number(member.y || 0);
