@@ -589,6 +589,9 @@
       } else if (data.state === 'pairing_data_missing' || data.state === 'not_configured') {
         stateEl.textContent = 'Нужна привязка Rust+';
         dot.style.background = '#e87532';
+      } else if (data.state === 'pairing_error') {
+        stateEl.textContent = 'Нужно обновить привязку сервера';
+        dot.style.background = '#e36b6b';
       } else if (data.state === 'auth_error') {
         stateEl.textContent = 'Facepunch отклонил авторизацию';
         dot.style.background = '#e36b6b';
@@ -601,8 +604,10 @@
       }
       const serverLabel = data.server_name ? 'Сервер: ' + data.server_name + '. ' : '';
       const authHelp = data.state === 'auth_error'
-        ? 'Facepunch отверг Rust+ auth token или player token. Повтори вход через Facepunch, импортируй свежий токен расширением и сохрани его. После сохранения Worker переподключится автоматически. ' 
-        : '';
+        ? 'Facepunch отклонил Rust+ auth token. Выполни новый вход через Facepunch и импортируй свежий токен расширением. '
+        : data.state === 'pairing_error'
+          ? 'Старый playerToken больше не подходит. Зайди на этот сервер, снова нажми Pair with Server в игре, затем нажми синхронизацию привязки здесь. '
+          : '';
       messageEl.textContent = serverLabel + authHelp + (data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно')));
       if (data.pairing_saved) document.getElementById('rustplusPairingHint').textContent = 'Сохранена привязка: ' + (data.server_name || 'Rust сервер') + '.';
       if (data.companion_connected) { loadRustPlusData(); loadRustPlusChat(true); }
