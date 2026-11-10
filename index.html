@@ -14,7 +14,7 @@
     h1{font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:-.7px}.sub{color:var(--muted);font-size:13px}
     .tag{border:1px solid #5a3b2b;background:#2b201a;color:#f2a16e;padding:6px 10px;border-radius:999px;font-size:12px}
     .steam-account{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:-14px 0 24px;padding:12px 14px;background:#171d25;border:1px solid #35404e;border-radius:13px}.steam-account-info{display:flex;align-items:center;gap:10px;color:#cbd4de;font-size:13px}.steam-account-info img{width:34px;height:34px;border-radius:9px;object-fit:cover}.steam-login-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#e87532;color:#1a100b;border-radius:9px;padding:9px 13px;font-weight:800;font-size:13px}.steam-login-link:hover{filter:brightness(1.08)}
-    .tab-nav{display:flex;gap:8px;flex-wrap:wrap;margin:-10px 0 24px}.tab-btn{border:1px solid #394351;background:#1b2028;color:#cbd3dc;padding:10px 17px;border-radius:11px;font:700 14px system-ui;cursor:pointer}.tab-btn.active{background:#e87532;border-color:#e87532;color:#1a100b}.tab-panel{display:none}.tab-panel.active{display:block}.map-frame{background:#11161c;border:1px solid #35404e;border-radius:15px;overflow:hidden;margin-top:12px;height:min(70vh,720px);min-height:360px;position:relative;touch-action:none;cursor:grab}.map-frame.dragging{cursor:grabbing}.map-stage{position:absolute;left:0;top:0;width:100%;transform-origin:0 0;will-change:transform}.map-image{display:block;width:100%;height:auto;max-height:none;object-fit:contain;background:#0d2630;pointer-events:none;user-select:none}.map-marker-layer{position:absolute;inset:0;pointer-events:none}.map-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;border:2px solid white;border-radius:50% 50% 50% 0;width:25px;height:25px;background:#e87532;color:#fff;font-size:11px;font-weight:900;box-shadow:0 3px 12px #0009;rotate:-45deg;cursor:pointer}.map-pin span{display:block;rotate:45deg}.map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.map-tools{display:flex;gap:7px;flex-wrap:wrap}.map-readout{font-size:12px;color:#b9c4d0}.map-marker-list{margin-top:18px}.map-marker-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#111821;border:1px solid #34404e;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}.map-marker-row small{display:block;color:#9ba7b5}.map-add-active{background:#e87532!important;color:#1a100b!important;border-color:#e87532!important}.map-details{display:flex;gap:12px;flex-wrap:wrap;color:#c3ccd6;font-size:13px;margin-top:14px}.map-details span{background:#111821;border:1px solid #34404e;border-radius:9px;padding:8px 11px}.map-note{font-size:12px;color:var(--muted);margin-top:12px}.hero{margin-bottom:24px}.hero h2{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:0 0 10px}.hero p{color:var(--muted);margin:0;max-width:650px}
+    .tab-nav{position:sticky;top:12px;z-index:25;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:-10px 0 24px;padding:7px;background:#171c24eF;border:1px solid #303a47;border-radius:16px;box-shadow:0 10px 30px #0005;backdrop-filter:blur(14px)}.tab-btn{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;border:1px solid transparent;background:transparent;color:#aeb8c5;padding:11px 14px;border-radius:11px;font:700 14px system-ui;cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease}.tab-btn:hover{background:#252d38;color:#fff}.tab-btn.active{background:linear-gradient(135deg,#f28a49,#d85f2b);border-color:#ffad79;color:#1a100b;box-shadow:0 4px 14px #e8753230}.nav-icon{display:inline-grid;place-items:center;width:22px;height:22px;font-size:20px;line-height:1;font-weight:900}.nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tab-panel{display:none}.tab-panel.active{display:block}.map-frame{background:#11161c;border:1px solid #35404e;border-radius:15px;overflow:hidden;margin-top:12px;height:min(70vh,720px);min-height:360px;position:relative;touch-action:none;cursor:grab}.map-frame.dragging{cursor:grabbing}.map-stage{position:absolute;left:0;top:0;width:100%;transform-origin:0 0;will-change:transform}.map-image{display:block;width:100%;height:auto;max-height:none;object-fit:contain;background:#0d2630;pointer-events:none;user-select:none}.map-marker-layer{position:absolute;inset:0;pointer-events:none}.map-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;border:2px solid white;border-radius:50% 50% 50% 0;width:25px;height:25px;background:#e87532;color:#fff;font-size:11px;font-weight:900;box-shadow:0 3px 12px #0009;rotate:-45deg;cursor:pointer}.map-pin span{display:block;rotate:45deg}.map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.map-tools{display:flex;gap:7px;flex-wrap:wrap}.map-readout{font-size:12px;color:#b9c4d0}.map-marker-list{margin-top:18px}.map-marker-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#111821;border:1px solid #34404e;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}.map-marker-row small{display:block;color:#9ba7b5}.map-add-active{background:#e87532!important;color:#1a100b!important;border-color:#e87532!important}.map-details{display:flex;gap:12px;flex-wrap:wrap;color:#c3ccd6;font-size:13px;margin-top:14px}.map-details span{background:#111821;border:1px solid #34404e;border-radius:9px;padding:8px 11px}.map-note{font-size:12px;color:var(--muted);margin-top:12px}.hero{margin-bottom:24px}.hero h2{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:0 0 10px}.hero p{color:var(--muted);margin:0;max-width:650px}
     .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:linear-gradient(180deg,#1b2028,#171b21);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 12px 35px #0002}
     .card h3{font-size:17px;margin:0 0 5px}.hint{font-size:13px;color:var(--muted);margin:0 0 16px}
     label{display:block;font-size:13px;color:#c4ccd5;margin:0 0 7px}input{width:100%;background:#10141a;border:1px solid #394351;color:var(--text);border-radius:10px;padding:12px 13px;font:inherit;outline:none}input:focus{border-color:var(--orange);box-shadow:0 0 0 3px #e8753220}
@@ -31,7 +31,7 @@
     .server-status{display:flex;align-items:center;gap:9px;margin:14px 0 8px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:#8b929c;display:inline-block}
     .server-box{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:14px;margin-top:14px}.server-box p{color:var(--muted);font-size:13px;margin:8px 0 0}
     .smallprint{color:var(--muted);font-size:12px;margin-top:18px}.footer{margin-top:24px;color:#77818d;font-size:12px;text-align:center}
-    @media(max-width:760px){.player-modal{padding:17px;border-radius:18px}.modal-avatar{width:66px;height:66px;border-radius:16px}.modal-name{font-size:19px}.modal-stat{padding:11px}.modal-stat strong{font-size:21px}.grid{grid-template-columns:1fr}.wrap{padding-top:22px}header{align-items:flex-start}.tag{font-size:11px}.card{padding:16px}.player{grid-template-columns:54px minmax(0,1fr);gap:11px;padding:13px}.player-avatar{width:52px;height:52px;border-radius:14px}.player-name{font-size:16px}}
+    @media(max-width:760px){.player-modal{padding:17px;border-radius:18px}.modal-avatar{width:66px;height:66px;border-radius:16px}.modal-name{font-size:19px}.modal-stat{padding:11px}.modal-stat strong{font-size:21px}.grid{grid-template-columns:1fr}.wrap{padding-top:22px;padding-bottom:104px}header{align-items:flex-start}.tag{font-size:11px}.card{padding:16px}.player{grid-template-columns:54px minmax(0,1fr);gap:11px;padding:13px}.player-avatar{width:52px;height:52px;border-radius:14px}.player-name{font-size:16px}.tab-nav{position:fixed;top:auto;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(620px,calc(100% - 20px));margin:0;padding:7px;gap:5px;border-radius:18px;background:#151a22f2;box-shadow:0 10px 35px #0009}.tab-btn{flex-direction:column;gap:3px;padding:8px 4px;border-radius:12px;font-size:11px}.nav-icon{width:22px;height:22px;font-size:19px}.nav-label{max-width:100%;font-size:11px}}
   </style>
 </head>
 <body>
@@ -49,7 +49,12 @@
       <h2>Следи за игроками Rust<br>в одном месте</h2>
       <p>Добавляй Steam-профили в список, быстро открывай их страницы и подготавливай мониторинг серверов.</p>
     </section>
-    <nav class="tab-nav" aria-label="Главное меню"><button class="tab-btn active" data-tab="players">Игроки</button><button class="tab-btn" data-tab="servers">Серверы</button><button class="tab-btn" data-tab="map">Карта</button><button class="tab-btn" data-tab="rustplus">Rust+ Companion</button></nav>
+    <nav class="tab-nav" aria-label="Главное меню">
+      <button class="tab-btn active" data-tab="players" type="button" aria-pressed="true"><span class="nav-icon" aria-hidden="true">♟</span><span class="nav-label">Игроки</span></button>
+      <button class="tab-btn" data-tab="servers" type="button" aria-pressed="false"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Серверы</span></button>
+      <button class="tab-btn" data-tab="map" type="button" aria-pressed="false"><span class="nav-icon" aria-hidden="true">⌖</span><span class="nav-label">Карта</span></button>
+      <button class="tab-btn" data-tab="rustplus" type="button" aria-pressed="false"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Rust+</span></button>
+    </nav>
     <section class="grid tab-panel active" id="mainGrid">
       <div class="card" id="playersCard">
         <h3>Добавить игрока</h3>
@@ -398,15 +403,25 @@
   const serverCard = document.getElementById('serverCard');
   const mapPanel = document.getElementById('mapPanel');
   const rustplusPanel = document.getElementById('rustplusPanel');
-  function setTab(tab) {
-    tabButtons.forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+  function setTab(tab, updateAddress = true) {
+    const allowedTabs = ['players', 'servers', 'map', 'rustplus'];
+    if (!allowedTabs.includes(tab)) tab = 'players';
+    tabButtons.forEach(button => {
+      const active = button.dataset.tab === tab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
     mainGrid.classList.toggle('active', tab === 'players' || tab === 'servers');
     playersCard.style.display = tab === 'players' ? '' : 'none';
     overviewCard.style.display = tab === 'players' ? '' : 'none';
     serverCard.style.display = tab === 'servers' ? '' : 'none';
     mapPanel.classList.toggle('active', tab === 'map');
     rustplusPanel.classList.toggle('active', tab === 'rustplus');
+    if (updateAddress && location.hash !== '#' + tab) {
+      history.replaceState({}, document.title, location.pathname + location.search + '#' + tab);
+    }
     if (tab === 'rustplus') refreshRustPlusStatus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   tabButtons.forEach(button => button.addEventListener('click', () => setTab(button.dataset.tab)));
 
@@ -652,7 +667,7 @@
   document.getElementById('rustplusRefresh').addEventListener('click', refreshRustPlusStatus);
   document.getElementById('rustplusLoadData').addEventListener('click', loadRustPlusData);
 
-  setTab('players');
+  setTab(location.hash.replace(/^#/, '') || 'players', false);
 
   // Интерактивная карта: масштабирование, перемещение и локальные пользовательские метки.
   const mapFrame = document.getElementById('rustMapFrame');
