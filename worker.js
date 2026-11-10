@@ -162,6 +162,26 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/rustplus/pairing/sync") {
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      const session = env.STEAM_SESSION_SECRET
+        ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
+        : null;
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) {
+        return json({ error: "steam_auth_required", message: "Сначала войди на сайт через Steam." }, 401, origin);
+      }
+      if (!env.RUSTPLUS_CLOUD) return json({ error: "rustplus_storage_unavailable" }, 503, origin);
+      const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + session.steamid);
+      const stub = env.RUSTPLUS_CLOUD.get(id);
+      const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/pairing-sync", { method: "POST" });
+      const body = await cloudResponse.text();
+      return new Response(body, {
+        status: cloudResponse.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+      });
+    }
+
     if (request.method !== "GET") {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
@@ -494,24 +514,134 @@ export class RustPlusCloud {
     this.lastMarkers = null;
     this.connecting = false;
   }
-  config() {
-    const host = String(this.env.RUSTPLUS_SERVER_IP || "").trim();
-    const port = Number(this.env.RUSTPLUS_APP_PORT || 0);
-    const playerId = String(this.env.RUSTPLUS_PLAYER_ID || "").trim();
-    const token = String(this.env.RUSTPLUS_PLAYER_TOKEN || "").trim();
-    if (!host || !Number.isInteger(port) || port < 1 || port > 65535 ||
-        !/^\d{17}$/.test(playerId) || !/^-?\d+$/.test(token)) return null;
-    return { host, port, playerId, token };
+
+  async config() {
+    const authToken = String(await this.ctx.storage.get("rustplus_auth_token") || "");
+    const steamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
+    const pairing = await this.ctx.storage.get("rustplus_pairing");
+    if (!authToken || !/^\d{17}$/.test(steamId) || !pairing || typeof pairing !== "object") return null;
+    const serverId = String(pairing.serverId || "");
+    const playerId = String(pairing.playerId || steamId);
+    const playerToken = String(pairing.playerToken ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serverId) ||
+        playerId !== steamId || !/^\d{17}$/.test(playerId) || !/^-?\d+$/.test(playerToken)) return null;
+    return { authToken, steamId, serverId, playerId, playerToken, name: String(pairing.name || "Rust сервер") };
   }
+
+  async syncPairingFromHistory() {
+    const authToken = String(await this.ctx.storage.get("rustplus_auth_token") || "");
+    const steamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
+    if (!authToken || !/^\d{17}$/.test(steamId)) {
+      return { found: false, message: "Сначала сохрани Rust+ авторизацию через Facepunch." };
+    }
+
+    let response;
+    try {
+      response = await fetch("https://companion-rust.facepunch.com/api/history/read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "User-Agent": "okhttp/4.9.2"
+        },
+        body: JSON.stringify({ AuthToken: authToken }),
+        signal: AbortSignal.timeout(15000)
+      });
+    } catch {
+      return { found: false, error: "facepunch_history_unavailable", message: "Не удалось связаться с Facepunch. Повтори проверку позже." };
+    }
+
+    if (!response.ok) {
+      const status = response.status;
+      this.lastError = "Facepunch history HTTP " + status;
+      return {
+        found: false,
+        error: status === 401 || status === 403 ? "rustplus_auth_expired" : "facepunch_history_error",
+        message: status === 401 || status === 403
+          ? "Rust+ авторизация истекла. Выполни вход через Facepunch заново."
+          : "Facepunch не вернул историю привязок (HTTP " + status + ")."
+      };
+    }
+
+    let events;
+    try { events = await response.json(); } catch {
+      return { found: false, error: "facepunch_invalid_response", message: "Facepunch вернул неизвестный формат истории." };
+    }
+    if (!Array.isArray(events)) {
+      return { found: false, error: "facepunch_invalid_history", message: "История Facepunch пока недоступна в ожидаемом формате." };
+    }
+
+    const candidates = [];
+    for (const item of events) {
+      let data = item?.data ?? item?.Data;
+      if (typeof data === "string") {
+        try { data = JSON.parse(data); } catch { continue; }
+      }
+      if (!data || typeof data !== "object") continue;
+
+      const playerId = String(data.playerId ?? data.PlayerId ?? item?.playerId ?? steamId);
+      const playerToken = String(data.playerToken ?? data.PlayerToken ?? item?.playerToken ?? "");
+      const serverId = String(data.id ?? data.serverId ?? data.ServerId ?? item?.serverId ?? item?.ServerId ?? "");
+      const type = String(data.type ?? data.Type ?? "").toLowerCase();
+      const channel = Number(item?.channel ?? item?.Channel ?? 0);
+      const isPairing = channel === 1001 || type === "server" || type === "entity" ||
+        String(item?.body ?? item?.Body ?? "").toLowerCase().includes("pair");
+      if (!isPairing || playerId !== steamId || !/^-?\d+$/.test(playerToken) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serverId)) continue;
+
+      const dateText = String(item?.date ?? item?.Date ?? "");
+      const dateValue = Date.parse(dateText);
+      candidates.push({
+        serverId,
+        playerId,
+        playerToken,
+        name: String(data.name ?? data.Name ?? item?.title ?? item?.Title ?? "Rust сервер"),
+        ip: String(data.ip ?? data.Ip ?? ""),
+        port: Number(data.port ?? data.Port ?? 0),
+        notificationId: String(item?.notificationId ?? item?.NotificationId ?? ""),
+        pairedAt: Number.isFinite(dateValue) ? new Date(dateValue).toISOString() : null,
+        sortTime: Number.isFinite(dateValue) ? dateValue : Number(item?.notificationId ?? item?.NotificationId ?? 0)
+      });
+    }
+
+    candidates.sort((a, b) => b.sortTime - a.sortTime);
+    const pairing = candidates[0];
+    if (!pairing) {
+      return {
+        found: false,
+        message: "Привязка ещё не найдена. Зайди на нужный Rust-сервер, открой меню Rust+ и нажми «Pair with Server», затем повтори поиск."
+      };
+    }
+
+    const { sortTime, ...safePairing } = pairing;
+    await this.ctx.storage.put("rustplus_pairing", safePairing);
+    this.lastError = null;
+    return {
+      found: true,
+      server: { id: safePairing.serverId, name: safePairing.name, ip: safePairing.ip, port: safePairing.port },
+      paired_at: safePairing.pairedAt,
+      message: "Привязка найдена в истории Facepunch. Подключаем Companion."
+    };
+  }
+
   async ensureConnected() {
-    const cfg = this.config();
-    if (!cfg) { this.state = "pairing_data_missing"; return; }
+    const cfg = await this.config();
+    if (!cfg) {
+      const authToken = await this.ctx.storage.get("rustplus_auth_token");
+      this.state = authToken ? "pairing_data_missing" : "not_configured";
+      this.schedule();
+      return;
+    }
     if (this.ws && this.ws.readyState <= 1) return;
     if (this.connecting) return;
     this.connecting = true;
     this.state = "connecting";
     try {
-      const ws = new WebSocket("ws://" + cfg.host + ":" + cfg.port);
+      const tokenProtocol = b64url(new TextEncoder().encode(cfg.authToken));
+      const ws = new WebSocket(
+        "wss://companion-rust.facepunch.com/socket/" + cfg.serverId,
+        ["rustplus.auth.v1", tokenProtocol]
+      );
       this.ws = ws;
       this.schedule();
       ws.addEventListener("open", () => {
@@ -543,7 +673,7 @@ export class RustPlusCloud {
         } catch (e) { this.lastError = String(e?.message || e).slice(0, 200); }
       });
       ws.addEventListener("error", () => {
-        this.lastError = "WebSocket connection error";
+        this.lastError = "Facepunch Companion WebSocket connection error";
         this.state = "error";
       });
       ws.addEventListener("close", () => {
@@ -560,22 +690,37 @@ export class RustPlusCloud {
       this.schedule();
     }
   }
+
   async sendRequest(field) {
-    const cfg = this.config();
-    if (!cfg || !this.ws || this.ws.readyState !== 1) throw new Error("Rust+ is not connected");
+    const cfg = await this.config();
+    if (!cfg || !this.ws || this.ws.readyState !== 1) throw new Error("Rust+ Companion is not connected");
     const seq = ++this.seq;
-    const packet = rpRequest(seq, cfg.playerId, cfg.token, field);
+    const packet = rpRequest(seq, cfg.playerId, cfg.playerToken, field);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(String(seq)); reject(new Error("Rust+ request timeout")); }, 12000);
       this.pending.set(String(seq), result => { clearTimeout(timer); resolve(result); });
       this.ws.send(packet);
     });
   }
+
   schedule() {
     this.ctx.storage.setAlarm(Date.now() + 4 * 60 * 1000).catch(() => {});
   }
+
   async alarm() {
-    if (!this.config()) { this.state = "pairing_data_missing"; return; }
+    let cfg = await this.config();
+    if (!cfg) {
+      const authToken = await this.ctx.storage.get("rustplus_auth_token");
+      if (authToken) {
+        await this.syncPairingFromHistory();
+        cfg = await this.config();
+      }
+    }
+    if (!cfg) {
+      this.state = (await this.ctx.storage.get("rustplus_auth_token")) ? "pairing_data_missing" : "not_configured";
+      this.schedule();
+      return;
+    }
     if (!this.ws || this.ws.readyState !== 1) {
       this.connecting = false;
       await this.ensureConnected();
@@ -584,6 +729,7 @@ export class RustPlusCloud {
       this.schedule();
     }
   }
+
   async fetch(request) {
     const path = new URL(request.url).pathname.replace(/^\//, "");
     if (path === "save-auth") {
@@ -595,8 +741,11 @@ export class RustPlusCloud {
       if (!/^[0-9]{17}$/.test(steamId) || authToken.length < 20 || authToken.length > 4096 || /\s/.test(authToken)) {
         return Response.json({ error: "invalid_credentials" }, { status: 400 });
       }
+      const previousSteamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
+      if (previousSteamId && previousSteamId !== steamId) await this.ctx.storage.delete("rustplus_pairing");
       await this.ctx.storage.put("rustplus_auth_token", authToken);
       await this.ctx.storage.put("rustplus_steam_id", steamId);
+      this.state = "pairing_data_missing";
       return Response.json({
         service: "rustplus-cloud",
         auth_token_saved: true,
@@ -604,34 +753,62 @@ export class RustPlusCloud {
         companion_connected: false,
         pairing_required: true,
         state: "auth_saved",
-        message: "Авторизация Rust+ сохранена. Следующий этап — регистрация push-устройства и получение привязки сервера."
+        message: "Авторизация Rust+ сохранена. Нажми «Pair with Server» в игре, затем синхронизируй историю Facepunch на сайте."
       });
     }
+
+    if (path === "pairing-sync") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      const result = await this.syncPairingFromHistory();
+      if (result.found) await this.ensureConnected();
+      return Response.json({
+        ...result,
+        state: this.state,
+        companion_connected: this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1)
+      }, { status: result.error ? 502 : 200 });
+    }
+
     if (path === "status" || path === "connect") {
       const authToken = await this.ctx.storage.get("rustplus_auth_token");
       const steamId = await this.ctx.storage.get("rustplus_steam_id");
       await this.ensureConnected();
-      const configured = Boolean(this.config());
+      const pairing = await this.ctx.storage.get("rustplus_pairing");
+      const configured = Boolean(await this.config());
       const connected = this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1);
       return Response.json({
-        service: "rustplus-cloud", state: this.state,
+        service: "rustplus-cloud",
+        state: this.state,
         auth_token_saved: Boolean(authToken && steamId),
-        configured, connected, companion_connected: connected,
+        pairing_saved: Boolean(pairing),
+        server_name: pairing?.name || null,
+        server_id: pairing?.serverId || null,
+        configured,
+        connected,
+        companion_connected: connected,
         backend_configured: true,
         pairing_required: !configured,
-        connected_at: this.connectedAt, error: this.lastError,
+        connected_at: this.connectedAt,
+        error: this.lastError,
         message: connected
-          ? "Облачный Rust+ Companion подключён."
+          ? "Facepunch Companion подключён к серверу Rust."
           : !configured
-            ? (authToken ? "Авторизация сохранена. Нужны данные Pair with Server." : "Сначала подключи Rust+ через Facepunch.")
+            ? (authToken ? "Авторизация сохранена. Нажми Pair with Server в игре и синхронизируй историю привязок." : "Сначала подключи Rust+ через Facepunch.")
             : this.state === "connecting"
               ? "Облачный Companion подключается к серверу Rust+."
               : this.lastError || "Облачный Companion пока не подключён.",
-        free_tier_note: "Постоянное соединение может расходовать дневной лимит Cloudflare Free."
+        free_tier_note: "Постоянное соединение и периодическая проверка истории расходуют дневной лимит Cloudflare Free."
       });
     }
+
     await this.ensureConnected();
-    if (!this.ws || this.ws.readyState !== 1) return Response.json({ error: "rustplus_not_connected", state: this.state, message: this.lastError || "Rust+ is not connected." }, { status: 503 });
+    if (!this.ws || this.ws.readyState !== 1) {
+      return Response.json({
+        error: "rustplus_not_connected",
+        state: this.state,
+        message: this.lastError || "Rust+ не подключён. Сначала синхронизируй Pair with Server."
+      }, { status: 503 });
+    }
+
     const field = ({ info: 8, team: 11, map: 10, markers: 18 })[path];
     if (!field) return Response.json({ error: "not_found" }, { status: 404 });
     try {
