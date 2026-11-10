@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: rust-player-tracker-companion
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGIN
+        value: https://sayzedev.github.io
+      - key: API_SECRET
+        generateValue: true
+      - key: RUSTPLUS_SERVER_IP
+        sync: false
+      - key: RUSTPLUS_APP_PORT
+        sync: false
+      - key: RUSTPLUS_PLAYER_ID
+        sync: false
+      - key: RUSTPLUS_PLAYER_TOKEN
+        sync: false
