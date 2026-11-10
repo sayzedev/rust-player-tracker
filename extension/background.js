@@ -7,7 +7,7 @@ function readAuthPayload(rawUrl) {
     const url = new URL(rawUrl);
     const token = url.searchParams.get("token") || url.searchParams.get("Token") || "";
     const steamId = url.searchParams.get("steamId") || url.searchParams.get("SteamId") || url.searchParams.get("steamID") || "";
-    if (!/^\\d{17}$/.test(steamId) || token.length < 20 || token.length > 4096 || /\\s/.test(token)) return null;
+    if (!/^\d{17}$/.test(steamId) || token.length < 20 || token.length > 4096 || /\s/.test(token)) return null;
     return { token, steamId, capturedAt: Date.now() };
   } catch {
     return null;
