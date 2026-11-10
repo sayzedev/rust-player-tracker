@@ -132,18 +132,56 @@ export default {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
-    if (url.pathname === "/api/rustplus/status") {
-      const authConfigured = Boolean(env.RUSTPLUS_AUTH_TOKEN);
-      return json({
-        service: "rustplus",
-        auth_token_configured: authConfigured,
-        server_id_required_now: false,
-        companion_connected: false,
-        pairing_required: true,
-        message: authConfigured
-          ? "Токен Rust+ сохранён. Server ID не требуется для этой проверки. Постоянное Companion-подключение и pairing ещё не реализованы."
-          : "Добавь RUSTPLUS_AUTH_TOKEN в Cloudflare Secrets. Не помещай токен в GitHub или браузер."
-      }, 200, origin, "no-store");
+    const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info)$/);
+    if (rustPlusMatch) {
+      const backendBase = String(env.RUSTPLUS_BACKEND_URL || "").trim().replace(/\/$/, "");
+      const backendSecret = String(env.RUSTPLUS_BACKEND_SECRET || "");
+      if (!backendBase || !backendSecret) {
+        return json({
+          service: "rustplus",
+          auth_token_configured: Boolean(env.RUSTPLUS_AUTH_TOKEN),
+          companion_connected: false,
+          pairing_required: true,
+          backend_configured: false,
+          message: "Companion-сервис ещё не подключён. Нужны RUSTPLUS_BACKEND_URL и RUSTPLUS_BACKEND_SECRET в Cloudflare Worker."
+        }, 200, origin, "no-store");
+      }
+      const route = rustPlusMatch[1];
+      try {
+        const upstream = await fetch(backendBase + "/api/rustplus/" + route, {
+          headers: { "Authorization": "Bearer " + backendSecret, "Accept": "application/json" },
+          signal: AbortSignal.timeout(15000)
+        });
+        const body = await upstream.text();
+        if (route === "status" && upstream.ok) {
+          let data = {};
+          try { data = JSON.parse(body); } catch {}
+          return json({
+            service: "rustplus",
+            auth_token_configured: Boolean(env.RUSTPLUS_AUTH_TOKEN),
+            companion_connected: data.state === "connected",
+            pairing_required: data.state === "pairing_data_missing" || data.state === "not_configured",
+            backend_configured: true,
+            state: data.state || "unknown",
+            connected_at: data.connected_at || null,
+            message: data.state === "connected"
+              ? "Companion подключён к серверу Rust."
+              : "Companion-сервис доступен, состояние: " + (data.state || "неизвестно") + "."
+          }, 200, origin, "no-store");
+        }
+        return new Response(body, {
+          status: upstream.status,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+        });
+      } catch {
+        return json({
+          service: "rustplus",
+          companion_connected: false,
+          backend_configured: true,
+          error: "rustplus_backend_unavailable",
+          message: "Не удалось связаться с Companion-сервисом. Проверь его запуск и адрес."
+        }, 502, origin, "no-store");
+      }
     }
 
     const statsMatch = url.pathname.match(/^\/api\/players\/(\d{17})\/stats$/);
