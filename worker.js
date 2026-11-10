@@ -926,7 +926,7 @@ export class RustPlusCloud {
     await this.ctx.storage.put("rustplus_processed_commands", [...processed, commandKey].slice(-150));
 
     // Rust+ broadcasts may include extra text around the player's command.
-    const commandMatch = text.match(/!(timer|help|p|online|team|who|server|status|map)\\b/i);
+    const commandMatch = text.match(/!(timer|help|p|online|team|who|pop|status|map)\\b/i);
     const command = commandMatch ? "!" + commandMatch[1].toLowerCase() : "";
     let reply = "";
     try {
@@ -945,7 +945,7 @@ export class RustPlusCloud {
           reply = "⏱ Таймер запущен на " + seconds + " сек. Отправлю: " + message;
         }
       } else if (command === "!help") {
-        reply = "Rust Bot: !help !p !team !server !map !timer";
+        reply = "Rust Bot: !help !p !team !pop !map !timer";
       } else if (command === "!p" || command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
@@ -960,7 +960,7 @@ export class RustPlusCloud {
             reply = ("Команда: " + names.join(", ") + (members.length > 4 ? " и ещё " + (members.length - 4) : "")).slice(0, 155);
           }
         }
-      } else if (command === "!server" || command === "!status") {
+      } else if (command === "!pop" || command === "!status") {
         const result = await this.sendRequest(8);
         const info = result.info || {};
         reply = ("Сервер: " + (info.name || "Rust") + " · Игроки: " + (info.players ?? "?") + "/" + (info.max_players ?? "?") + " · Очередь: " + (info.queued_players ?? 0)).slice(0, 155);
