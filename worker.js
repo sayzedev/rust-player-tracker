@@ -128,6 +128,40 @@ export default {
       return json({ steamid: session.steamid, expires_at: session.exp }, 200, origin, "no-store");
     }
 
+    if (url.pathname === "/api/rustplus/connect") {
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      const session = env.STEAM_SESSION_SECRET
+        ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
+        : null;
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) {
+        return json({ error: "steam_auth_required", message: "Сначала войди на сайт через Steam." }, 401, origin);
+      }
+      let payload;
+      try { payload = await request.json(); } catch {
+        return json({ error: "invalid_json" }, 400, origin);
+      }
+      const steamId = String(payload?.steamId || "");
+      const authToken = String(payload?.token || "");
+      if (steamId !== session.steamid || !/^[0-9]{17}$/.test(steamId) ||
+          authToken.length < 20 || authToken.length > 4096 || /\s/.test(authToken)) {
+        return json({ error: "invalid_rustplus_credentials", message: "Данные Rust+ не совпадают с аккаунтом Steam или имеют неверный формат." }, 400, origin);
+      }
+      if (!env.RUSTPLUS_CLOUD) return json({ error: "rustplus_storage_unavailable" }, 503, origin);
+      const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + steamId);
+      const stub = env.RUSTPLUS_CLOUD.get(id);
+      const saved = await stub.fetch("https://rustplus-cloud.internal/save-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ steamId, authToken })
+      });
+      const body = await saved.text();
+      return new Response(body, {
+        status: saved.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+      });
+    }
+
     if (request.method !== "GET") {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
@@ -138,17 +172,18 @@ export default {
       const rustPlusSession = env.STEAM_SESSION_SECRET
         ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
         : null;
-      const pairedSteamId = String(env.RUSTPLUS_PLAYER_ID || "").trim();
-      if (!rustPlusSession || !pairedSteamId || rustPlusSession.steamid !== pairedSteamId) {
+      if (!rustPlusSession || !/^[0-9]{17}$/.test(rustPlusSession.steamid || "")) {
         return json({
           error: "rustplus_auth_required",
-          message: "Войди через Steam с аккаунтом, привязанным к Rust+."
+          message: "Войди через Steam, чтобы открыть своё подключение Rust+."
         }, 401, origin);
       }
       if (env.RUSTPLUS_CLOUD) {
-        const id = env.RUSTPLUS_CLOUD.idFromName("primary-rust-server");
-        const stub = env.RUSTPLUS_CLOUD.get(id);
         const route = rustPlusMatch[1];
+        const id = env.RUSTPLUS_CLOUD.idFromName(route === "status"
+          ? "rustplus-user:" + rustPlusSession.steamid
+          : "primary-rust-server");
+        const stub = env.RUSTPLUS_CLOUD.get(id);
         const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/" + route);
         const body = await cloudResponse.text();
         return new Response(body, {
@@ -553,7 +588,41 @@ export class RustPlusCloud {
   }
   async fetch(request) {
     const path = new URL(request.url).pathname.replace(/^\//, "");
+    if (path === "save-auth") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+      const steamId = String(payload?.steamId || "");
+      const authToken = String(payload?.authToken || "");
+      if (!/^[0-9]{17}$/.test(steamId) || authToken.length < 20 || authToken.length > 4096 || /\s/.test(authToken)) {
+        return Response.json({ error: "invalid_credentials" }, { status: 400 });
+      }
+      await this.ctx.storage.put("rustplus_auth_token", authToken);
+      await this.ctx.storage.put("rustplus_steam_id", steamId);
+      return Response.json({
+        service: "rustplus-cloud",
+        auth_token_saved: true,
+        steam_id: steamId,
+        companion_connected: false,
+        pairing_required: true,
+        state: "auth_saved",
+        message: "Авторизация Rust+ сохранена. Следующий этап — регистрация push-устройства и получение привязки сервера."
+      });
+    }
     if (path === "status" || path === "connect") {
+      const authToken = await this.ctx.storage.get("rustplus_auth_token");
+      const steamId = await this.ctx.storage.get("rustplus_steam_id");
+      if (authToken && steamId) {
+        return Response.json({
+          service: "rustplus-cloud",
+          auth_token_saved: true,
+          steam_id: steamId,
+          companion_connected: false,
+          pairing_required: true,
+          state: "auth_saved",
+          message: "Авторизация Rust+ сохранена. Ожидается регистрация push-устройства и привязка игрового сервера."
+        });
+      }
       await this.ensureConnected();
       const configured = Boolean(this.config());
       const connected = this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1);
@@ -566,7 +635,7 @@ export class RustPlusCloud {
         message: connected
           ? "Облачный Rust+ Companion подключён."
           : !configured
-            ? "Добавь данные привязки Rust+ в секреты Cloudflare Worker."
+            ? "Подключи Rust+ через расширение браузера."
             : this.state === "connecting"
               ? "Облачный Companion подключается к серверу Rust+."
               : this.lastError || "Облачный Companion пока не подключён.",
