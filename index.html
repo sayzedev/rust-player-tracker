@@ -106,6 +106,7 @@
           <button class="btn primary" id="rustplusStartLink" type="button">1. Войти через Facepunch</button>
           <button class="btn secondary" id="rustplusImport" type="button">2. Получить токен из расширения</button>
           <button class="btn secondary" id="rustplusRefresh" type="button">Проверить статус</button>
+          <button class="btn secondary" id="rustplusPairingSync" type="button">3. Найти игровую привязку</button>
           <a class="btn secondary" href="https://rust.facepunch.com/companion/" target="_blank" rel="noopener noreferrer">Официальный Rust+ ↗</a>
         </div>
         <div class="field" style="margin-top:16px">
@@ -121,7 +122,7 @@
       </div>
       <div class="grid" style="margin-top:16px">
         <div class="server-box"><h3>Что уже доступно</h3><p>Steam-вход, каталог серверов BattleMetrics, профиль Steam, статистика Rust и карта с личными метками.</p></div>
-        <div class="server-box"><h3>Подключение аккаунта</h3><p>Расширение получает только Rust+ auth token и SteamID с официальной страницы Facepunch. Затем серверная часть должна отдельно зарегистрировать push-устройство и принять игровую привязку.</p></div>
+        <div class="server-box"><h3>Подключение сервера</h3><p>После сохранения авторизации зайди на нужный Rust-сервер, открой меню Rust+ и нажми «Pair with Server». Затем нажми «Найти игровую привязку»: сайт прочитает историю Facepunch, сохранит данные привязки в твоём защищённом облачном хранилище и подключится через Companion.</p><p class="map-note" id="rustplusPairingHint">Пока игровая привязка не найдена.</p></div>
       </div>
       <div class="server-box" style="margin-top:16px">
         <div class="actions"><button class="btn primary" id="rustplusLoadData" type="button">Загрузить данные Rust+</button></div>
@@ -132,7 +133,7 @@
           <div><h3>Карта Rust+</h3><img id="rustplusMapImage" class="rustplus-map-preview" alt="Живая карта Rust+" hidden><pre class="rustplus-output" id="rustplusMap">Пока нет данных.</pre></div>
         </div>
       </div>
-      <p class="map-note">Импорт авторизации — только первый этап. Получение push-данных Pair with Server и подключение живой карты ещё требуют серверной реализации.</p>
+      <p class="map-note">Привязка синхронизируется через историю уведомлений Facepunch. Для получения новых данных нажимай «Pair with Server» в игре, затем запускай синхронизацию на сайте. Непрерывная работа Companion зависит от лимитов Cloudflare.</p>
     </section>
     <div class="modal-backdrop" id="playerModal" aria-hidden="true">
       <section class="player-modal" role="dialog" aria-modal="true" aria-labelledby="modalName">
@@ -503,6 +504,40 @@
     document.getElementById('rustplusTokenHint').textContent = 'Поле очищено.';
   });
 
+  async function syncRustPlusPairing() {
+    const button = document.getElementById('rustplusPairingSync');
+    const hint = document.getElementById('rustplusPairingHint');
+    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
+    const sessionToken = localStorage.getItem(STEAM_USER_KEY) || '';
+    if (!sessionToken) { alert('Сначала войди на сайте через Steam.'); return; }
+    button.disabled = true;
+    button.textContent = 'Ищем привязку…';
+    hint.textContent = 'Проверяем историю уведомлений Facepunch.';
+    try {
+      const response = await fetch(base + '/api/rustplus/pairing/sync', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + sessionToken, 'Content-Type': 'application/json' },
+        body: '{}',
+        cache: 'no-store'
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || result.error || 'Ошибка синхронизации: ' + response.status);
+      hint.textContent = result.found
+        ? 'Найдена привязка: ' + (result.server?.name || 'Rust сервер') + '. ' + (result.message || '')
+        : (result.message || 'Привязка пока не найдена.');
+      await refreshRustPlusStatus();
+      if (result.found && result.companion_connected) await loadRustPlusData();
+      if (!result.found) alert(result.message || 'Привязка пока не найдена.');
+    } catch (error) {
+      hint.textContent = error.message || 'Не удалось синхронизировать привязку.';
+      alert(error.message || 'Ошибка синхронизации Rust+.');
+    } finally {
+      button.disabled = false;
+      button.textContent = '3. Найти игровую привязку';
+    }
+  }
+  document.getElementById('rustplusPairingSync').addEventListener('click', syncRustPlusPairing);
+
   async function refreshRustPlusStatus() {
     const stateEl = document.getElementById('rustplusState');
     const messageEl = document.getElementById('rustplusMessage');
@@ -538,7 +573,9 @@
         stateEl.textContent = 'Companion ожидает подключения';
         dot.style.background = '#e87532';
       }
-      messageEl.textContent = data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно'));
+      const serverLabel = data.server_name ? 'Сервер: ' + data.server_name + '. ' : '';
+      messageEl.textContent = serverLabel + (data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно')));
+      if (data.pairing_saved) document.getElementById('rustplusPairingHint').textContent = 'Сохранена привязка: ' + (data.server_name || 'Rust сервер') + '.';
       if (data.companion_connected) loadRustPlusData();
     } catch (error) {
       stateEl.textContent = 'Не удалось проверить Rust+';
