@@ -59,13 +59,11 @@
         <div class="card" style="margin-top:18px">
           <h3>Мониторинг сервера Rust</h3>
           <p class="hint">Подготовка подключения сервера</p>
-          <div class="field"><label for="serverInput">IP или адрес сервера</label><input id="serverInput" placeholder="Например, 123.45.67.89:28015"></div>
-          <button class="btn secondary" id="saveServer">Сохранить адрес</button>
-          <div class="server-box">
-            <div class="server-status"><span class="dot"></span><span id="serverState">Статус пока неизвестен</span></div>
-            <p id="serverInfo">Адрес сервера не добавлен.</p>
-          </div>
-          <p class="smallprint">Для получения реального онлайна игроков, статистики и статуса сервера нужно подключить серверную часть к BattleMetrics API. Секретный API-токен нельзя размещать в публичном HTML.</p>
+          <div class="field"><label for="workerUrl">Адрес API Worker</label><input id="workerUrl" placeholder="https://имя-worker.workers.dev"></div>
+          <div class="field"><label for="serverSearch">Название Rust-сервера</label><input id="serverSearch" placeholder="Введи часть названия сервера"></div>
+          <button class="btn secondary" id="searchServers">Найти серверы</button>
+          <div id="serverResults" class="list"><div class="empty">После публикации Worker здесь появятся найденные серверы.</div></div>
+          <p class="smallprint">Данные серверов предоставляются <a class="link" href="https://battlemetrics.ru" target="_blank" rel="noopener noreferrer">BattleMetrics.ru</a>. API-ключ хранится в Worker и не раскрывается браузеру.</p>
         </div>
       </aside>
     </section>
@@ -74,14 +72,14 @@
 <script>
 (() => {
   const STORAGE_KEY = 'rust-player-tracker.players.v1';
-  const SERVER_KEY = 'rust-player-tracker.server.v1';
+  const WORKER_KEY = 'rust-player-tracker.worker.v1';
   const input = document.getElementById('steamInput');
   const notice = document.getElementById('notice');
   const playersEl = document.getElementById('players');
   const countEl = document.getElementById('count');
   let players = read(STORAGE_KEY, []);
-  let server = localStorage.getItem(SERVER_KEY) || '';
-  document.getElementById('serverInput').value = server;
+  const workerInput = document.getElementById('workerUrl');
+  workerInput.value = localStorage.getItem(WORKER_KEY) || '';
 
   function read(key, fallback) {
     try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value : fallback; }
@@ -126,13 +124,37 @@
   document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(input.value); });
   document.getElementById('demoBtn').addEventListener('click', () => { input.value = '76561199440875097'; addPlayer(input.value); });
-  document.getElementById('saveServer').addEventListener('click', () => {
-    server = document.getElementById('serverInput').value.trim();
-    localStorage.setItem(SERVER_KEY, server);
-    document.getElementById('serverState').textContent = 'Статус пока неизвестен';
-    document.getElementById('serverInfo').textContent = server ? 'Сохранён адрес: ' + server + '. Для проверки подключения требуется API-сервис.' : 'Адрес сервера не добавлен.';
+  workerInput.addEventListener('change', () => localStorage.setItem(WORKER_KEY, workerInput.value.trim().replace(/\\/$/, '')));
+  document.getElementById('searchServers').addEventListener('click', async () => {
+    const base = workerInput.value.trim().replace(/\\/$/, '');
+    const query = document.getElementById('serverSearch').value.trim();
+    const results = document.getElementById('serverResults');
+    if (!base.startsWith('https://') || !base.endsWith('.workers.dev')) {
+      results.textContent = 'Сначала укажи опубликованный адрес Cloudflare Worker (https://…workers.dev).';
+      return;
+    }
+    if (query.length < 3) { results.textContent = 'Введи минимум 3 символа названия сервера.'; return; }
+    localStorage.setItem(WORKER_KEY, base);
+    results.textContent = 'Ищем серверы…';
+    try {
+      const response = await fetch(base + '/api/servers?q=' + encodeURIComponent(query));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Ошибка API: ' + response.status);
+      const list = Array.isArray(data.servers) ? data.servers : [];
+      results.replaceChildren();
+      if (!list.length) { const empty = document.createElement('div'); empty.className='empty'; empty.textContent='Серверы не найдены.'; results.append(empty); return; }
+      list.forEach(s => {
+        const card = document.createElement('div'); card.className='player';
+        const main = document.createElement('div'); main.className='player-main';
+        const name = document.createElement('div'); name.className='player-name'; name.textContent=s.name || 'Rust server';
+        const meta = document.createElement('div'); meta.className='player-id'; meta.textContent=(s.address || '') + ' · ' + (s.online ? 'Онлайн' : 'Офлайн') + ' · ' + (s.players == null ? '—' : s.players) + '/' + (s.max_players ?? '—');
+        const link = document.createElement('a'); link.className='link'; link.href=s.url || ('https://battlemetrics.ru/game/rust/server/' + s.id); link.target='_blank'; link.rel='noopener noreferrer'; link.textContent='Подробнее ↗';
+        main.append(name,meta); card.append(main,link); results.append(card);
+      });
+    } catch (error) {
+      results.textContent = 'Не удалось получить данные: ' + error.message + '. Проверь адрес Worker и секрет BATTLEMETRICS_API_KEY.';
+    }
   });
-  if (server) document.getElementById('serverInfo').textContent = 'Сохранён адрес: ' + server + '. Для проверки подключения требуется API-сервис.';
   render();
 })();
 </script>
