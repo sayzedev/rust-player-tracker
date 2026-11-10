@@ -47,7 +47,7 @@
       <h2>Следи за игроками Rust<br>в одном месте</h2>
       <p>Добавляй Steam-профили в список, быстро открывай их страницы и подготавливай мониторинг серверов.</p>
     </section>
-    <nav class="tab-nav" aria-label="Главное меню"><button class="tab-btn active" data-tab="players">Игроки</button><button class="tab-btn" data-tab="servers">Серверы</button><button class="tab-btn" data-tab="map">Карта</button></nav>
+    <nav class="tab-nav" aria-label="Главное меню"><button class="tab-btn active" data-tab="players">Игроки</button><button class="tab-btn" data-tab="servers">Серверы</button><button class="tab-btn" data-tab="map">Карта</button><button class="tab-btn" data-tab="rustplus">Rust+ Companion</button></nav>
     <section class="grid tab-panel active" id="mainGrid">
       <div class="card" id="playersCard">
         <h3>Добавить игрока</h3>
@@ -93,6 +93,23 @@
       <div class="map-details"><span>Размер: 4500 × 4500</span><span>Seed: 574513490</span><span>IP: 195.60.166.130:28015</span></div>
       <p class="map-note">Карта загружается с Facepunch. Она соответствует опубликованному состоянию карты сервера; при следующем вайпе изображение может измениться.</p>
       <div class="actions" style="margin-top:15px"><a class="btn secondary" href="https://rust-data.com/en/servers/rustafiedcom-eu-long-large-61d8948b0c?tab=map" target="_blank" rel="noopener noreferrer">Открыть страницу карты ↗</a></div>
+    </section>
+    <section class="card tab-panel" id="rustplusPanel">
+      <h3>Rust+ Companion</h3>
+      <p class="hint">Проверка подключения Rust+ и состояние Companion-сервиса</p>
+      <div class="server-box" style="margin-top:0">
+        <div class="server-status"><span class="dot" id="rustplusDot"></span><span id="rustplusState">Проверяем подключение…</span></div>
+        <p id="rustplusMessage">Получаем состояние Rust+ Worker.</p>
+        <div class="actions" style="margin-top:13px">
+          <button class="btn primary" id="rustplusRefresh" type="button">Проверить снова</button>
+          <a class="btn secondary" href="https://rust.facepunch.com/companion/" target="_blank" rel="noopener noreferrer">Официальный Rust+ ↗</a>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:16px">
+        <div class="server-box"><h3>Что уже доступно</h3><p>Steam-вход, каталог серверов BattleMetrics, профиль Steam, статистика Rust и карта с личными метками.</p></div>
+        <div class="server-box"><h3>Что требует Companion</h3><p>Живая карта Rust+, позиции команды, игровые события, Smart Switches, Smart Alarms и Storage Monitors.</p></div>
+      </div>
+      <p class="map-note">Сейчас эта панель показывает реальное состояние подключения. Она не подменяет его тестовыми данными. Для живых функций нужен постоянно работающий Node.js Companion-сервис с привязкой к конкретному серверу.</p>
     </section>
     <div class="modal-backdrop" id="playerModal" aria-hidden="true">
       <section class="player-modal" role="dialog" aria-modal="true" aria-labelledby="modalName">
@@ -356,15 +373,49 @@
   const overviewCard = document.getElementById('overviewCard');
   const serverCard = document.getElementById('serverCard');
   const mapPanel = document.getElementById('mapPanel');
+  const rustplusPanel = document.getElementById('rustplusPanel');
   function setTab(tab) {
     tabButtons.forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
-    mainGrid.classList.toggle('active', tab !== 'map');
+    mainGrid.classList.toggle('active', tab === 'players' || tab === 'servers');
     playersCard.style.display = tab === 'players' ? '' : 'none';
     overviewCard.style.display = tab === 'players' ? '' : 'none';
     serverCard.style.display = tab === 'servers' ? '' : 'none';
     mapPanel.classList.toggle('active', tab === 'map');
+    rustplusPanel.classList.toggle('active', tab === 'rustplus');
+    if (tab === 'rustplus') refreshRustPlusStatus();
   }
   tabButtons.forEach(button => button.addEventListener('click', () => setTab(button.dataset.tab)));
+
+  async function refreshRustPlusStatus() {
+    const stateEl = document.getElementById('rustplusState');
+    const messageEl = document.getElementById('rustplusMessage');
+    const dot = document.getElementById('rustplusDot');
+    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\\/$/, '');
+    stateEl.textContent = 'Проверяем подключение…';
+    messageEl.textContent = 'Запрашиваем статус у Cloudflare Worker.';
+    dot.style.background = '#8b929c';
+    try {
+      const response = await fetch(base + '/api/rustplus/status', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Ошибка ' + response.status);
+      if (data.companion_connected) {
+        stateEl.textContent = 'Companion подключён';
+        dot.style.background = '#58c78b';
+      } else if (data.auth_token_configured) {
+        stateEl.textContent = 'Токен сохранён · Companion не подключён';
+        dot.style.background = '#e87532';
+      } else {
+        stateEl.textContent = 'Rust+ ещё не настроен';
+        dot.style.background = '#e36b6b';
+      }
+      messageEl.textContent = data.message || ('Состояние: ' + (data.companion_connected ? 'подключён' : 'не подключён'));
+    } catch (error) {
+      stateEl.textContent = 'Не удалось проверить Rust+';
+      messageEl.textContent = error.message || 'Ошибка запроса к Worker.';
+      dot.style.background = '#e36b6b';
+    }
+  }
+  document.getElementById('rustplusRefresh').addEventListener('click', refreshRustPlusStatus);
 
   setTab('players');
 
