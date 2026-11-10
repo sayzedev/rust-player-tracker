@@ -668,7 +668,7 @@ export class RustPlusCloud {
         type === "server" || type === "entity";
 
       // Missing playerId must not silently default to the signed-in account.
-      if (!isPairing || playerId !== steamId || !/^-?\\d+$/.test(playerToken) ||
+      if (!isPairing || playerId !== steamId || !/^-?\d+$/.test(playerToken) ||
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId) ||
           /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(serverId)) continue;
 
