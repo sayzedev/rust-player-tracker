@@ -565,6 +565,7 @@ export class RustPlusCloud {
     this.lastMarkers = null;
     this.lastChat = [];
     this.lastChatSendAt = 0;
+    this.commandTimestamps = new Map();
     this.connecting = false;
   }
 
@@ -719,7 +720,8 @@ export class RustPlusCloud {
             this.lastChat = result.messages || [];
             await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
           } else if (result.type === "teamMessage") {
-            await this.appendChatMessage(result.message);
+            const added = await this.appendChatMessage(result.message);
+            if (added) await this.handleTeamChatCommand(result.message);
           }
           const response = rpDecode(new Uint8Array(data));
           const inner = rpOne(response, 1);
@@ -762,9 +764,57 @@ export class RustPlusCloud {
     const duplicate = this.lastChat.some(item =>
       item.steamid === entry.steamid && item.time === entry.time && item.message === entry.message
     );
-    if (duplicate) return;
+    if (duplicate) return false;
     this.lastChat = [...this.lastChat, entry].slice(-100);
     await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
+    return true;
+  }
+
+  async handleTeamChatCommand(entry) {
+    const text = String(entry?.message || "").trim();
+    if (!text.startsWith("/")) return;
+    const senderId = String(entry?.steamid || "");
+    const now = Date.now();
+    const previous = this.commandTimestamps.get(senderId) || 0;
+    if (now - previous < 2000) return;
+    this.commandTimestamps.set(senderId, now);
+
+    const command = text.toLowerCase().split(/\s+/)[0];
+    let reply = "";
+    try {
+      if (command === "/help") {
+        reply = "Rust Bot: /help /online /team /server /map";
+      } else if (command === "/online" || command === "/team" || command === "/who") {
+        const result = await this.sendRequest(11);
+        if (result.type !== "team") reply = "Не удалось получить состав команды.";
+        else {
+          const members = Array.isArray(result.team?.members) ? result.team.members : [];
+          if (command === "/online") {
+            const online = members.filter(member => member.online);
+            const names = online.slice(0, 4).map(member => member.name || "Игрок");
+            reply = ("Онлайн команды: " + online.length + "/" + members.length + (names.length ? " · " + names.join(", ") : "")).slice(0, 155);
+          } else {
+            const names = members.slice(0, 4).map(member => (member.name || "Игрок") + (member.online ? " [онлайн]" : " [оффлайн]"));
+            reply = ("Команда: " + names.join(", ") + (members.length > 4 ? " и ещё " + (members.length - 4) : "")).slice(0, 155);
+          }
+        }
+      } else if (command === "/server" || command === "/status") {
+        const result = await this.sendRequest(8);
+        const info = result.info || {};
+        reply = ("Сервер: " + (info.name || "Rust") + " · Игроки: " + (info.players ?? "?") + "/" + (info.max_players ?? "?") + " · Очередь: " + (info.queued_players ?? 0)).slice(0, 155);
+      } else if (command === "/map") {
+        const result = await this.sendRequest(8);
+        const info = result.info || {};
+        reply = ("Карта: " + (info.map || "открой вкладку Rust+ на сайте") + ". Метки и изображение доступны на сайте.").slice(0, 155);
+      } else {
+        reply = "Неизвестная команда. Напиши /help.";
+      }
+      if (reply) {
+        await this.sendRequest(13, rpEncodeTextMessage(reply));
+      }
+    } catch {
+      try { await this.sendRequest(13, rpEncodeTextMessage("Rust Bot: не удалось получить данные. Попробуй позже.")); } catch {}
+    }
   }
 
   async sendRequest(field, payload = new Uint8Array()) {
