@@ -172,7 +172,7 @@
       const stats = document.createElement('div'); stats.className = 'player-stats'; stats.textContent = 'Статистика Rust загружается…';
       const actions = document.createElement('div'); actions.className = 'player-actions';
       const link = document.createElement('a'); link.className = 'link'; link.href = 'https://steamcommunity.com/profiles/' + player.id; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Steam ↗';
-      const refresh = document.createElement('button'); refresh.className = 'btn secondary'; refresh.textContent = '↻'; refresh.title = 'Обновить профиль'; refresh.style.padding = '7px 9px'; refresh.addEventListener('click', () => loadPlayerProfile(player, row, name, avatar, status));
+      const refresh = document.createElement('button'); refresh.className = 'btn secondary'; refresh.textContent = '↻'; refresh.title = 'Обновить профиль и статистику Rust'; refresh.style.padding = '7px 9px'; refresh.addEventListener('click', () => { loadPlayerProfile(player, row, name, avatar, status); loadPlayerStats(player, row, stats); });
       const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.textContent = 'Удалить'; remove.style.padding = '7px 9px'; remove.style.fontSize = '12px';
       remove.addEventListener('click', () => { players = players.filter(p => p.id !== player.id); save(); });
       main.append(name, id, status, stats); actions.append(link, refresh, remove); row.append(avatar, main, actions); playersEl.append(row);
@@ -180,6 +180,25 @@
       loadPlayerStats(player, row, stats);
     });
   }
+  let automaticRefreshBusy = false;
+  async function refreshAllPlayers() {
+    if (automaticRefreshBusy || !players.length || document.hidden) return;
+    automaticRefreshBusy = true;
+    try {
+      await Promise.all(players.map(player => {
+        const row = [...playersEl.children].find(el => el.querySelector('.player-id')?.textContent === player.id);
+        if (!row) return Promise.resolve();
+        return Promise.all([
+          loadPlayerProfile(player, row, row.querySelector('.player-name'), row.querySelector('.player-avatar'), row.querySelector('.player-status')),
+          loadPlayerStats(player, row, row.querySelector('.player-stats'))
+        ]);
+      }));
+    } finally {
+      automaticRefreshBusy = false;
+    }
+  }
+  setInterval(refreshAllPlayers, 120000);
+
   document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(input.value); });
   document.getElementById('demoBtn').addEventListener('click', () => { input.value = '76561199440875097'; addPlayer(input.value); });
