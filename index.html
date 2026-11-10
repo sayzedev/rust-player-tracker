@@ -140,8 +140,7 @@
           <div id="rustplusTeamHistory" class="rustplus-device-list"><div class="empty">История пока пуста.</div></div>
         </div>
         <div class="server-box">
-          <h3>События устройств</h3>
-          <p class="hint">Последние изменения Smart Alarm и Storage Monitor.</p>
+          <div class="list-head"><div><h3>События устройств</h3><p class="hint" style="margin:4px 0 0">Последние изменения Smart Alarm и Storage Monitor.</p></div><button class="btn secondary" id="rustplusNotifyEnable" type="button">Включить уведомления</button></div>
           <div id="rustplusDeviceEvents" class="rustplus-device-list"><div class="empty">Событий пока нет.</div></div>
         </div>
       </div>
@@ -786,6 +785,12 @@
     button.disabled = false;
     button.textContent = 'Загрузить данные Rust+';
   }
+  document.getElementById('rustplusNotifyEnable').addEventListener('click',async()=>{
+    const status=document.getElementById('rustplusDeviceStatus');
+    if(!('Notification' in window)){status.textContent='Этот браузер не поддерживает уведомления.';return;}
+    const permission=await Notification.requestPermission();
+    status.textContent=permission==='granted'?'Уведомления Rust+ включены.':'Разрешение на уведомления не выдано.';
+  });
   document.getElementById('rustplusDevicesRefresh').addEventListener('click',async()=>{try{await refreshRustPlusDevices();}catch(error){document.getElementById('rustplusDeviceStatus').textContent=error.message;}});
   document.getElementById('rustplusTimeRefresh').addEventListener('click',async()=>{try{await refreshRustPlusGameTime();}catch(error){document.getElementById('rustplusGameTimeMeta').textContent=error.message;}});
   setInterval(() => {
@@ -856,6 +861,8 @@
       row.append(info,actions);root.append(row);
     }
   }
+  let lastRustPlusDeviceEventAt = 0;
+  let rustPlusEventsPrimed = false;
   async function refreshRustPlusDevices(){
     const data=await rustPlusGet('devices');renderRustPlusDevices(data.devices||[]);
     const historyData=await rustPlusGet('history');const historyRoot=document.getElementById('rustplusTeamHistory');historyRoot.replaceChildren();
@@ -863,7 +870,16 @@
     if(!historyItems.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='История пока пуста. Она начнёт собираться, когда Worker опросит команду.';historyRoot.append(empty);}
     for(const point of historyItems){const item=document.createElement('div');item.className='rustplus-device';const label=document.createElement('div');label.textContent=(point.name||point.steamid)+' · '+(point.alive?'жив':'погиб')+' · X '+Number(point.x||0).toFixed(2)+' / Y '+Number(point.y||0).toFixed(2);const time=document.createElement('small');time.textContent=new Date(point.at).toLocaleTimeString();item.append(label,time);historyRoot.append(item);}
     const events=await rustPlusGet('events');const root=document.getElementById('rustplusDeviceEvents');root.replaceChildren();
-    const list=Array.isArray(events.events)?events.events.slice(-8).reverse():[];
+    const allEvents=Array.isArray(events.events)?events.events:[];
+    const newest=allEvents.reduce((max,event)=>Math.max(max,Number(event.at||0)),0);
+    if(rustPlusEventsPrimed && newest>lastRustPlusDeviceEventAt && 'Notification' in window && Notification.permission==='granted'){
+      for(const event of allEvents.filter(item=>Number(item.at||0)>lastRustPlusDeviceEventAt).slice(-5)){
+        new Notification('Rust+ · событие устройства',{body:'Устройство ID '+event.entity_id+' · '+(event.payload?.value?'активировано':'изменено')});
+      }
+    }
+    if(newest>0)lastRustPlusDeviceEventAt=newest;
+    rustPlusEventsPrimed=true;
+    const list=allEvents.slice(-8).reverse();
     if(!list.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Событий пока нет.';root.append(empty);}
     for(const event of list){const item=document.createElement('div');item.className='rustplus-device';const label=document.createElement('div');label.textContent='Устройство ID '+event.entity_id+' · '+(event.payload?.value?'активировано':'изменено');const time=document.createElement('small');time.textContent=new Date(event.at).toLocaleString();item.append(label,time);root.append(item);}
   }
