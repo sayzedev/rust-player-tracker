@@ -111,7 +111,7 @@
     return states[Number(profile.personastate)] || 'Статус неизвестен';
   }
   async function loadPlayerProfile(player, row, name, avatar, status) {
-    const base = (localStorage.getItem(WORKER_KEY) || '').trim().replace(/\\/$/, '');
+    const base = (localStorage.getItem(WORKER_KEY) || '').trim().replace(/\/$/, '');
     if (!base.startsWith('https://') || !base.endsWith('.workers.dev')) {
       status.textContent = 'Укажи адрес Worker для загрузки профиля';
       return;
