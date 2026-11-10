@@ -768,6 +768,8 @@ export class RustPlusCloud {
         this.connecting = false;
         this.state = "error";
         this.lastError = "Facepunch Companion connection timed out before WebSocket opened";
+        this.ctx.storage.put("rustplus_connect_error", this.lastError).catch(() => {});
+        this.ctx.storage.delete("rustplus_connect_started_at").catch(() => {});
         try { if (ws.readyState < 2) ws.close(1000, "Connection timeout"); } catch {}
         this.schedule();
       }, 20000);
@@ -935,6 +937,7 @@ export class RustPlusCloud {
     if (startedAt && Date.now() - startedAt >= 20000 && (!this.ws || this.ws.readyState !== 1)) {
       const stale = this.ws; this.ws = null; this.connecting = false; this.state = "error";
       this.lastError = "Facepunch Companion connection timed out before WebSocket opened";
+      await this.ctx.storage.put("rustplus_connect_error", this.lastError);
       await this.ctx.storage.delete("rustplus_connect_started_at");
       try { if (stale && stale.readyState < 2) stale.close(1000, "Connection timeout"); } catch {}
       this.schedule(); return;
