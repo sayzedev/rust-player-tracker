@@ -1,0 +1,6 @@
+name = "rust-player-tracker-api"
+main = "worker.js"
+compatibility_date = "2026-11-10"
+
+[vars]
+# Секрет BATTLEMETRICS_API_KEY добавляется отдельно в настройках Cloudflare Worker.
