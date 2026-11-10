@@ -113,6 +113,7 @@
           <button class="btn secondary" id="rustplusImport" type="button">2. Получить токен из расширения</button>
           <button class="btn secondary" id="rustplusRefresh" type="button">Проверить статус</button>
           <button class="btn secondary" id="rustplusPairingSync" type="button">4. Найти игровую привязку</button>
+          <button class="btn secondary" id="rustplusPairingClear" type="button">Очистить все привязки</button>
           <a class="btn secondary" href="https://rust.facepunch.com/companion/" target="_blank" rel="noopener noreferrer">Официальный Rust+ ↗</a>
         </div>
         <div class="field" style="margin-top:16px">
@@ -560,6 +561,43 @@
     }
   }
   document.getElementById('rustplusPairingSync').addEventListener('click', syncRustPlusPairing);
+  async function clearRustPlusPairing() {
+    if (!confirm('Очистить сохранённую Rust+ привязку, отключить Companion и удалить историю командного чата? Авторизация Facepunch останется сохранена.')) return;
+    const button = document.getElementById('rustplusPairingClear');
+    const hint = document.getElementById('rustplusPairingHint');
+    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\\/$/, '');
+    const sessionToken = localStorage.getItem(STEAM_USER_KEY) || '';
+    if (!sessionToken) { alert('Сначала войди на сайт через Steam.'); return; }
+    button.disabled = true;
+    button.textContent = 'Очищаем…';
+    try {
+      const response = await fetch(base + '/api/rustplus/pairing/clear', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + sessionToken, 'Content-Type': 'application/json' },
+        body: '{}',
+        cache: 'no-store'
+      });
+      const result = await response.json();
+      if (!response.ok || !result.cleared) throw new Error(result.message || result.error || 'Не удалось очистить привязку.');
+      hint.textContent = result.message || 'Привязка очищена.';
+      document.getElementById('rustplusInfo').textContent = 'Пока нет данных.';
+      document.getElementById('rustplusTeam').textContent = 'Пока нет данных.';
+      document.getElementById('rustplusMarkers').textContent = 'Пока нет данных.';
+      document.getElementById('rustplusMap').textContent = 'Пока нет данных.';
+      document.getElementById('rustplusMapImage').hidden = true;
+      document.getElementById('rustplusChatMessages').innerHTML = '<div class="empty">Привязка очищена.</div>';
+      await refreshRustPlusStatus();
+      alert('Сохранённая Rust+ привязка очищена.');
+    } catch (error) {
+      hint.textContent = error.message || 'Ошибка очистки привязки.';
+      alert(error.message || 'Не удалось очистить привязку.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Очистить все привязки';
+    }
+  }
+  document.getElementById('rustplusPairingClear').addEventListener('click', clearRustPlusPairing);
+
 
   async function refreshRustPlusStatus() {
     const stateEl = document.getElementById('rustplusState');
