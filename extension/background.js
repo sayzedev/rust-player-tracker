@@ -1,4 +1,5 @@
 const FACEPUNCH_SCHEME = "rust-plus://rust-auth-session";
+const FACEPUNCH_APP_ORIGIN = "https://companion-rust.facepunch.com";
 
 function readAuthPayload(rawUrl) {
   try {
@@ -14,8 +15,23 @@ function readAuthPayload(rawUrl) {
 }
 
 chrome.webNavigation.onBeforeNavigate.addListener(async details => {
+  let target;
+  try { target = new URL(details.url); } catch { return; }
+
+  if (target.origin === FACEPUNCH_APP_ORIGIN && target.pathname === "/app") {
+    const result = await chrome.storage.session.get("facepunchAppTabs");
+    const tabs = Array.isArray(result.facepunchAppTabs) ? result.facepunchAppTabs : [];
+    if (!tabs.includes(details.tabId)) tabs.push(details.tabId);
+    await chrome.storage.session.set({ facepunchAppTabs: tabs.slice(-20) });
+    return;
+  }
+
   const payload = readAuthPayload(details.url);
   if (!payload) return;
+  const result = await chrome.storage.session.get("facepunchAppTabs");
+  const tabs = Array.isArray(result.facepunchAppTabs) ? result.facepunchAppTabs : [];
+  if (!tabs.includes(details.tabId)) return;
+  await chrome.storage.session.remove("facepunchAppTabs");
   await chrome.storage.session.set({ pendingRustPlus: payload });
   await chrome.action.setBadgeText({ text: "OK" });
   await chrome.action.setBadgeBackgroundColor({ color: "#16865b" });
