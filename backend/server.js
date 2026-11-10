@@ -82,12 +82,13 @@ function rustRequest(method) {
             else if (Array.isArray(rawImage)) imageBuffer = Buffer.from(rawImage);
             else if (rawImage?.type === "Buffer" && Array.isArray(rawImage.data)) imageBuffer = Buffer.from(rawImage.data);
             else imageBuffer = Buffer.from(rawImage);
-            return res.json({
+            res.json({
               width: map.width || null,
               height: map.height || null,
               image_data_url: "data:image/jpeg;base64," + imageBuffer.toString("base64"),
               monuments: map.monuments || []
             });
+            return true;
           }
         }
         res.json(message);
