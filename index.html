@@ -139,7 +139,10 @@
     try {
       const response = await fetch(base + '/api/players/' + player.id + '/stats');
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || 'Ошибка ' + response.status);
+      if (!response.ok) {
+        if (response.status === 404 || data.error === 'not_found') throw new Error('Worker в Cloudflare устарел: нужно опубликовать актуальный worker.js из GitHub.');
+        throw new Error(data.message || data.error || 'Ошибка ' + response.status);
+      }
       if (!row.isConnected) return;
       player.stats = data;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
