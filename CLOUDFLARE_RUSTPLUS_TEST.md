@@ -1,64 +1,44 @@
-# Cloudflare Rust+ (free-tier test)
+# Rust+ Companion on Cloudflare
 
-This prototype moves the Rust+ connection into a Cloudflare Durable Object. It does not use the user's computer, Home Assistant, Discord, or a separate Node host.
+The website stores the user's Facepunch Rust+ auth token in that user's Cloudflare Durable Object, reads the recent Facepunch notification history to discover the latest server-pairing payload, and connects to Facepunch's Companion WebSocket:
 
-## Important limits
+- History: `POST https://companion-rust.facepunch.com/api/history/read`
+- Companion socket: `wss://companion-rust.facepunch.com/socket/{serverId}`
+- WebSocket subprotocols: `rustplus.auth.v1` and the base64url-encoded Rust+ auth token.
 
-- This is a test implementation; it has not yet been deployed or verified against a live Rust server.
-- Cloudflare Workers Free currently includes 13,000 GB-seconds/day for Durable Objects and 100,000 Durable Object requests/day.
-- An always-open outbound WebSocket is not hibernatable. Cloudflare documents a 15-minute outbound-connection eviction protection window; this implementation sends a small Rust+ info request every 4 minutes to keep the object active. Actual uptime and usage must be measured in the dashboard.
-- A continuously active Durable Object is billed for its allocated 128 MB. At 24/7 uptime this is about 11,059 GB-seconds/day, leaving only about 1,941 GB-seconds/day from the 13,000 GB-s free allowance for this object. The four-minute keepalive alarm intentionally keeps the connection alive, so expect nearly full-time duration usage. If the free quota is exceeded, Cloudflare says further operations of that metered type fail until the daily reset; it should not silently switch this test to paid usage. The service may stop responding if the free quota is exceeded. Do not assume 24/7 reliability until tested.
-- Only configure one Rust server for this initial test.
+The player ID and player token from the pairing payload authenticate Rust+ requests. The website never asks the user to paste the player token, server IP, or app port into the public page.
 
-## Required Cloudflare Worker secrets
+## User setup
 
-Set these as secrets in the Cloudflare Worker settings. Never paste pairing values into GitHub or public chat.
+1. Sign in to the website using Steam.
+2. Open the official Facepunch Rust+ login from the Rust+ tab.
+3. Complete the Facepunch login, return to the website, and use the browser extension to import the Rust+ auth token.
+4. Save the token using the protected save button.
+5. Join the Rust server in the game, open the Rust+ menu, and select **Pair with Server**.
+6. Return to the website and click **Find game pairing**. The Worker requests Facepunch notification history, extracts the matching server pairing, stores it in the user's Durable Object, and starts the Companion WebSocket.
+7. Once status reports the Companion connected, load server info, team, map markers, and the map image.
 
-- `RUSTPLUS_SERVER_IP`: server IP/hostname from the Rust+ pairing details
-- `RUSTPLUS_APP_PORT`: Rust+ app port (not the normal game/query port)
-- `RUSTPLUS_PLAYER_ID`: your 17-digit SteamID64 used for pairing
-- `RUSTPLUS_PLAYER_TOKEN`: numeric player token from that server's Rust+ pairing
+The Durable Object also checks notification history on its scheduled alarm when a token has been saved but no pairing has been found. Manual sync is available immediately after pairing in game.
 
-## Deployment
+## Cloudflare configuration
 
-The Worker must be deployed with the Durable Object binding and SQLite migration declared in `wrangler.toml`:
+The existing Worker deployment needs:
 
-```toml
-[[durable_objects.bindings]]
-name = "RUSTPLUS_CLOUD"
-class_name = "RustPlusCloud"
+- The `RUSTPLUS_CLOUD` Durable Object binding.
+- The `rustplus-cloud-v1` SQLite migration (already declared in `wrangler.toml`).
+- The existing `STEAM_SESSION_SECRET` Worker secret for website Steam sessions.
+- GitHub Actions repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for automatic deployment.
 
-[[migrations]]
-tag = "rustplus-cloud-v1"
-new_sqlite_classes = ["RustPlusCloud"]
-```
+No static `RUSTPLUS_SERVER_IP`, `RUSTPLUS_APP_PORT`, `RUSTPLUS_PLAYER_ID`, or `RUSTPLUS_PLAYER_TOKEN` Worker secrets are needed by the Facepunch Companion flow.
 
-If the Worker is edited only in the browser dashboard, make sure the Durable Object class and migration are also created/applied in Cloudflare. Merely pasting `worker.js` is not enough.
+## Important limitations
 
-After deployment, open:
+- The Facepunch notification history endpoint is reverse-engineered and can change. It may contain only a limited recent history. If a pairing is not present, repeat **Pair with Server** in the game and then sync again.
+- The Rust+ auth token expires and must be renewed through Facepunch when rejected.
+- The Worker and Durable Object syntax and deployment are checked by GitHub Actions, but a successful deployment is not proof of a live Rust server connection. A real in-game pairing and live Companion response are required to verify end-to-end connectivity.
+- An always-open outbound WebSocket is not hibernatable. Cloudflare Durable Objects Free quotas are limited; scheduled history checks and a persistent connection consume usage. Monitor Cloudflare usage before relying on continuous uptime. Free-tier capacity is not a promise of 24/7 service.
+- Only one active paired server is stored per Steam account in this first version. A future multi-server UI should store and select multiple pairings separately.
 
-- `/api/rustplus/status`
-- `/api/rustplus/info`
-- `/api/rustplus/team`
-- `/api/rustplus/map`
-- `/api/rustplus/markers`
+## Current supported data
 
-The status endpoint starts the cloud connection. A successful WebSocket handshake alone is not enough; status must remain `connected` and info must return real server details.
-
-## Current implementation scope
-
-The code implements a minimal Rust+ protobuf client for info, team, map, and map markers. Smart switch/alarm/storage entity actions are not exposed yet. Those should be added only after the cloud connection and response decoding are confirmed against a real paired server.
-
-
-## Automatic deployment from GitHub
-
-A GitHub Actions workflow is included at `.github/workflows/deploy-worker.yml`. It deploys the Worker and applies Durable Object migrations whenever `worker.js` or `wrangler.toml` changes.
-
-For security, the workflow requires two GitHub repository Actions secrets; they must be created by the repository owner and must never be committed:
-
-- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token with permission to edit Workers scripts for the account.
-- `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID.
-
-Until those two secrets exist, the workflow intentionally stops before deployment. I cannot create Cloudflare credentials or authorize deployment from GitHub without access granted by the account owner.
-
-The Rust+ pairing secrets listed above are separate and must be configured in the Cloudflare Worker environment. Do not share them in chat or add them to the Git repository.
+Once the Companion socket is verified connected, the site can request server info, team info, map image, and map markers. Smart-device actions, chat commands, camera controls, and push notifications are not enabled in this version.
