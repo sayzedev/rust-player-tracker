@@ -317,7 +317,7 @@ export default {
 
 // Cloud-hosted Rust+ connection. Pairing values must be configured as Worker secrets.
 function rpVarint(value) {
-  let n = BigInt(value);
+  let n = BigInt.asUintN(64, BigInt(value));
   const out = [];
   while (n > 127n) {
     out.push(Number((n & 127n) | 128n));
@@ -469,6 +469,7 @@ export class RustPlusCloud {
     try {
       const ws = new WebSocket("ws://" + cfg.host + ":" + cfg.port);
       this.ws = ws;
+      this.schedule();
       ws.addEventListener("open", () => {
         this.state = "connected";
         this.connectedAt = new Date().toISOString();
