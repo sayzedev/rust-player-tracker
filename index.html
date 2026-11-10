@@ -121,7 +121,7 @@
       <div class="rustplus-feature-grid">
         <div class="rustplus-feature"><strong>Живая карта и координаты команды</strong><p>Карта Rust+, монументы, позиции тиммейтов и пользовательские метки.</p><span class="feature-state">Подключено</span></div>
         <div class="rustplus-feature"><strong>Командный чат</strong><p>Чтение истории и отправка сообщений из браузера в игровой Team Chat.</p><span class="feature-state">Подключено</span></div>
-        <div class="rustplus-feature"><strong>Команды игрового чата</strong><p>!help, !p, !team, !pop, !map и !timer.</p><span class="feature-state">В коде Worker</span></div>
+        <div class="rustplus-feature"><strong>Команды игрового чата</strong><p>!help, !p, !team, !pop, !map, !time, !switch и !timer.</p><span class="feature-state">В коде Worker</span></div>
         <div class="rustplus-feature"><strong>Steam-профили команды</strong><p>Имена и аватары Steam при наличии доступных публичных данных.</p><span class="feature-state">Частично</span></div>
         <div class="rustplus-feature"><strong>Smart Switch и группы</strong><p>Управление игровыми переключателями и группами устройств.</p><span class="feature-state later">Нужна реализация API</span></div>
         <div class="rustplus-feature"><strong>Smart Alarm</strong><p>События сигнализаций и уведомления о срабатывании.</p><span class="feature-state later">Нужна реализация API</span></div>
@@ -193,7 +193,7 @@
         <div class="rustplus-chat-messages" id="rustplusChatMessages" aria-live="polite"><div class="empty">Подключи Rust+ и загрузи историю чата.</div></div>
         <div class="field" style="margin-top:12px"><label for="rustplusChatInput">Сообщение или команда бота</label><input id="rustplusChatInput" maxlength="160" autocomplete="off" placeholder="Напиши сообщение или !help"></div>
         <div class="actions"><button class="btn primary" id="rustplusChatSend" type="button">Отправить в игровой чат</button><span class="count" id="rustplusChatStatus" role="status">До 160 символов</span></div>
-        <p class="map-note">Команды: <code>!help</code>, <code>!p</code>, <code>!team</code>, <code>!pop</code>, <code>!map</code>, <code>!timer 30 Привет</code>. Команды можно отправлять из игрового чата или из этого окна.</p>
+        <p class="map-note">Команды: <code>!help</code>, <code>!p</code>, <code>!team</code>, <code>!pop</code>, <code>!map</code>, <code>!time</code>, <code>!switch ID on/off</code>, <code>!timer 30 Привет</code>. Команды можно отправлять из игрового чата или из этого окна.</p>
       </section>
       <p class="map-note">Привязка синхронизируется через историю уведомлений Facepunch. Для получения новых данных нажимай «Pair with Server» в игре, затем запускай синхронизацию на сайте. Непрерывная работа Companion зависит от лимитов Cloudflare.</p>
     </section>
@@ -783,6 +783,13 @@
   }
   document.getElementById('rustplusDevicesRefresh').addEventListener('click',async()=>{try{await refreshRustPlusDevices();}catch(error){document.getElementById('rustplusDeviceStatus').textContent=error.message;}});
   document.getElementById('rustplusTimeRefresh').addEventListener('click',async()=>{try{await refreshRustPlusGameTime();}catch(error){document.getElementById('rustplusGameTimeMeta').textContent=error.message;}});
+  setInterval(() => {
+    if (location.hash === '#rustplus' || document.getElementById('rustplusPanel').classList.contains('active')) {
+      refreshRustPlusDevices().catch(() => {});
+      refreshRustPlusGameTime().catch(() => {});
+      loadRustPlusChat(true).catch(() => {});
+    }
+  }, 20000);
   document.getElementById('rustplusDeviceAdd').addEventListener('click',async()=>{
     const id=Number(document.getElementById('rustplusDeviceId').value),name=document.getElementById('rustplusDeviceName').value.trim(),type=document.getElementById('rustplusDeviceType').value,status=document.getElementById('rustplusDeviceStatus');
     if(!Number.isSafeInteger(id)||id<=0){status.textContent='Введи числовой Entity ID устройства.';return;}
