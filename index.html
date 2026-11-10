@@ -135,6 +135,11 @@
           <button class="btn secondary" id="rustplusTimeRefresh" type="button">Обновить время</button>
         </div>
         <div class="server-box">
+          <h3>История команды</h3>
+          <p class="hint">Последние сохранённые позиции тиммейтов, пока они онлайн.</p>
+          <div id="rustplusTeamHistory" class="rustplus-device-list"><div class="empty">История пока пуста.</div></div>
+        </div>
+        <div class="server-box">
           <h3>События устройств</h3>
           <p class="hint">Последние изменения Smart Alarm и Storage Monitor.</p>
           <div id="rustplusDeviceEvents" class="rustplus-device-list"><div class="empty">Событий пока нет.</div></div>
@@ -853,6 +858,10 @@
   }
   async function refreshRustPlusDevices(){
     const data=await rustPlusGet('devices');renderRustPlusDevices(data.devices||[]);
+    const historyData=await rustPlusGet('history');const historyRoot=document.getElementById('rustplusTeamHistory');historyRoot.replaceChildren();
+    const historyItems=Array.isArray(historyData.history)?historyData.history.slice(-8).reverse():[];
+    if(!historyItems.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='История пока пуста. Она начнёт собираться, когда Worker опросит команду.';historyRoot.append(empty);}
+    for(const point of historyItems){const item=document.createElement('div');item.className='rustplus-device';const label=document.createElement('div');label.textContent=(point.name||point.steamid)+' · '+(point.alive?'жив':'погиб')+' · X '+Number(point.x||0).toFixed(2)+' / Y '+Number(point.y||0).toFixed(2);const time=document.createElement('small');time.textContent=new Date(point.at).toLocaleTimeString();item.append(label,time);historyRoot.append(item);}
     const events=await rustPlusGet('events');const root=document.getElementById('rustplusDeviceEvents');root.replaceChildren();
     const list=Array.isArray(events.events)?events.events.slice(-8).reverse():[];
     if(!list.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Событий пока нет.';root.append(empty);}
