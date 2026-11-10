@@ -747,7 +747,21 @@ export class RustPlusCloud {
       );
       this.ws = ws;
       this.schedule();
+      // Do not leave the dashboard stuck on "connecting" if Facepunch never
+      // completes the WebSocket handshake.
+      this.connectionTimer = setTimeout(() => {
+        if (this.ws !== ws || ws.readyState === 1) return;
+        this.ws = null;
+        this.connecting = false;
+        this.state = "error";
+        this.lastError = "Facepunch Companion connection timed out before WebSocket opened";
+        try { if (ws.readyState < 2) ws.close(1000, "Connection timeout"); } catch {}
+        this.schedule();
+      }, 20000);
       ws.addEventListener("open", () => {
+        if (this.ws !== ws) return;
+        if (this.connectionTimer) clearTimeout(this.connectionTimer);
+        this.connectionTimer = null;
         this.state = "connected";
         this.connectedAt = new Date().toISOString();
         this.lastError = null;
@@ -785,11 +799,15 @@ export class RustPlusCloud {
       });
       ws.addEventListener("error", () => {
         if (this.ws !== ws) return;
+        if (this.connectionTimer) clearTimeout(this.connectionTimer);
+        this.connectionTimer = null;
         this.lastError = "Facepunch Companion WebSocket connection error";
         this.state = "error";
       });
       ws.addEventListener("close", () => {
         if (this.ws !== ws) return;
+        if (this.connectionTimer) clearTimeout(this.connectionTimer);
+        this.connectionTimer = null;
         this.ws = null;
         this.connecting = false;
         if (this.state !== "auth_error") this.state = "disconnected";
