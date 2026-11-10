@@ -928,8 +928,21 @@ export class RustPlusCloud {
     const command = text.toLowerCase().split(/\s+/)[0];
     let reply = "";
     try {
-      if (command === "!help") {
-        reply = "Rust Bot: !help !online !team !server !map";
+      if (command === "!timer") {
+        const parts = text.trim().split(/\\s+/);
+        const seconds = Number(parts[1]);
+        const message = parts.slice(2).join(" ").trim();
+        if (!Number.isInteger(seconds) || seconds < 5 || seconds > 86400 || !message || message.length > 100) {
+          reply = "Формат: !timer 30 слово (5 сек — 24 часа)";
+        } else {
+          const timers = await this.ctx.storage.get("rustplus_team_timers") || [];
+          timers.push({ id: crypto.randomUUID(), dueAt: Date.now() + seconds * 1000, message, sender: String(entry?.name || "Игрок") });
+          await this.ctx.storage.put("rustplus_team_timers", timers.slice(-30));
+          this.schedule(Math.min(seconds * 1000, 30000));
+          reply = "⏱ Таймер запущен на " + seconds + " сек. Отправлю: " + message;
+        }
+      } else if (command === "!help") {
+        reply = "Rust Bot: !help !online !team !server !map !timer";
       } else if (command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
@@ -988,6 +1001,25 @@ export class RustPlusCloud {
       await this.ctx.storage.delete("rustplus_connect_started_at");
       try { if (stale && stale.readyState < 2) stale.close(1000, "Connection timeout"); } catch {}
       this.schedule(); return;
+    }
+    // Deliver scheduled team-chat messages when their timers expire.
+    if (this.ws && this.ws.readyState === 1) {
+      const timers = await this.ctx.storage.get("rustplus_team_timers") || [];
+      const now = Date.now();
+      const due = timers.filter(timer => Number(timer.dueAt) <= now);
+      const pending = timers.filter(timer => Number(timer.dueAt) > now);
+      if (due.length) {
+        await this.ctx.storage.put("rustplus_team_timers", pending);
+        for (const timer of due.slice(0, 10)) {
+          try { await this.sendRequest(13, rpEncodeTextMessage(String(timer.message || "").slice(0, 155))); }
+          catch (e) {
+            this.lastError = String(e?.message || e).slice(0, 200);
+            pending.push(timer);
+            await this.ctx.storage.put("rustplus_team_timers", pending);
+            break;
+          }
+        }
+      }
     }
     let cfg = await this.config();
     if (!cfg) {
