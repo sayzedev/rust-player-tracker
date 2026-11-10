@@ -390,7 +390,7 @@
     const stateEl = document.getElementById('rustplusState');
     const messageEl = document.getElementById('rustplusMessage');
     const dot = document.getElementById('rustplusDot');
-    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\\/$/, '');
+    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
     stateEl.textContent = 'Проверяем подключение…';
     messageEl.textContent = 'Запрашиваем статус у Cloudflare Worker.';
     dot.style.background = '#8b929c';
