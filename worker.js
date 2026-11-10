@@ -510,7 +510,7 @@ function rustGridLocation(x, y, mapSize) {
     letters = String.fromCharCode(65 + rem) + letters;
     n = Math.floor((n - 1) / 26);
   }
-  const row = columns - 1 - rowFromBottom;
+  const row = columns - rowFromBottom;
   return letters + row;
 }
 function rpDecodeResponse(buffer) {
@@ -1037,12 +1037,19 @@ export class RustPlusCloud {
       const y = Number(member.y || 0);
       next[id] = {
         name: String(member.name || "Игрок"),
+        online: Boolean(member.online),
         alive: Boolean(member.alive),
         death_time: Number(member.death_time || 0),
         spawn_time: Number(member.spawn_time || 0),
         x: Number.isFinite(x) ? x : 0,
         y: Number.isFinite(y) ? y : 0
       };
+      // Announce only transitions after the first snapshot, not everyone on startup.
+      if (old && old.online !== next[id].online) {
+        notices.push(next[id].online
+          ? "🟢 " + next[id].name + " зашёл на сервер"
+          : "🔴 " + next[id].name + " вышел с сервера");
+      }
       // Rust+ increments deathTime for every death; this catches deaths even
       // when a short alive/dead transition happens between polling intervals.
       const died = old && (
