@@ -103,12 +103,21 @@
         <div class="server-status"><span class="dot" id="rustplusDot"></span><span id="rustplusState">Проверяем подключение…</span></div>
         <p id="rustplusMessage">Получаем состояние Rust+ Worker.</p>
         <div class="actions" style="margin-top:13px">
-          <button class="btn primary" id="rustplusStartLink" type="button">Подключить через Facepunch</button>
-          <button class="btn secondary" id="rustplusImport" type="button">Получить авторизацию из расширения</button>
-          <button class="btn secondary" id="rustplusRefresh" type="button">Проверить снова</button>
+          <button class="btn primary" id="rustplusStartLink" type="button">1. Войти через Facepunch</button>
+          <button class="btn secondary" id="rustplusImport" type="button">2. Получить токен из расширения</button>
+          <button class="btn secondary" id="rustplusRefresh" type="button">Проверить статус</button>
           <a class="btn secondary" href="https://rust.facepunch.com/companion/" target="_blank" rel="noopener noreferrer">Официальный Rust+ ↗</a>
         </div>
-        <p class="map-note">Нужно установить расширение из папки extension в репозитории. После входа проверь SteamID и подтверди импорт.</p>
+        <div class="field" style="margin-top:16px">
+          <label for="rustplusTokenInput">3. Rust+ auth token</label>
+          <input id="rustplusTokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="Токен появится после импорта или вставь его сюда">
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="rustplusSaveToken" type="button">Сохранить токен защищённо</button>
+          <button class="btn secondary" id="rustplusClearToken" type="button">Очистить поле</button>
+        </div>
+        <p class="map-note" id="rustplusTokenHint">Сначала войди на сайт через Steam. Затем открой Facepunch, вернись сюда и импортируй токен. Можно вставить токен вручную. Пароль Steam сюда не вводи.</p>
+        <p class="map-note">Расширение должно быть установлено из папки extension в репозитории. Перед сохранением сайт сверяет SteamID расширения с твоим Steam-входом.</p>
       </div>
       <div class="grid" style="margin-top:16px">
         <div class="server-box"><h3>Что уже доступно</h3><p>Steam-вход, каталог серверов BattleMetrics, профиль Steam, статистика Rust и карта с личными метками.</p></div>
@@ -405,67 +414,94 @@
     window.open(facepunchLogin, '_blank', 'noopener');
   });
 
+  let rustPlusPendingSteamId = "";
   async function importRustPlusFromExtension() {
     const button = document.getElementById('rustplusImport');
     const sessionToken = localStorage.getItem(STEAM_USER_KEY) || '';
-    if (!sessionToken) {
-      alert('Сначала войди на сайте через Steam.');
-      return;
-    }
+    if (!sessionToken) { alert('Сначала войди на сайте через Steam.'); return; }
     button.disabled = true;
     button.textContent = 'Проверяем расширение…';
     try {
       const sessionResponse = await fetch(DEFAULT_WORKER + '/auth/steam/session?token=' + encodeURIComponent(sessionToken), { cache: 'no-store' });
       const session = await sessionResponse.json();
-      if (!sessionResponse.ok || !session.steamid) throw new Error('Сессия Steam на сайте недействительна. Войди через Steam ещё раз.');
-
+      if (!sessionResponse.ok || !session.steamid) throw new Error('Сессия Steam недействительна. Войди через Steam ещё раз.');
       const requestId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^a-zA-Z0-9_-]/g, '');
       const extensionPayload = await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           window.removeEventListener('message', onMessage);
-          reject(new Error('Расширение не ответило. Проверь, что оно установлено и страница сайта обновлена.'));
+          reject(new Error('Расширение не ответило. Проверь установку расширения и обнови страницу сайта.'));
         }, 8000);
         function onMessage(event) {
           if (event.source !== window || event.origin !== location.origin) return;
           const data = event.data;
-          if (!data || data.source !== 'rust-player-tracker-extension' ||
-              data.type !== 'RUSTPLUS_AUTH_RESULT' || data.requestId !== requestId) return;
+          if (!data || data.source !== 'rust-player-tracker-extension' || data.type !== 'RUSTPLUS_AUTH_RESULT' || data.requestId !== requestId) return;
           clearTimeout(timer);
           window.removeEventListener('message', onMessage);
-          if (!data.response?.ok) reject(new Error(data.response?.message || 'Токен не найден. Сначала войди через Facepunch.'));
+          if (!data.response?.ok) reject(new Error(data.response?.message || 'Токен не найден. Сначала заверши вход через Facepunch.'));
           else resolve(data.response.payload);
         }
         window.addEventListener('message', onMessage);
         window.postMessage({ source: 'rust-player-tracker-page', type: 'GET_RUSTPLUS_AUTH', requestId }, location.origin);
       });
-
-      if (extensionPayload.steamId !== session.steamid) {
-        throw new Error('SteamID Rust+ не совпадает с аккаунтом, которым ты вошёл на сайте. Переподключи нужный аккаунт.');
-      }
-      if (!confirm('Подтвердить передачу Rust+ авторизации на сайт для SteamID ' + extensionPayload.steamId + '?')) {
-        throw new Error('Передача отменена. Токен уже удалён из временной очереди расширения; при необходимости выполни вход Facepunch заново.');
-      }
-
-      button.textContent = 'Сохраняем защищённо…';
-      const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
-      const response = await fetch(base + '/api/rustplus/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionToken },
-        body: JSON.stringify({ steamId: extensionPayload.steamId, token: extensionPayload.token }),
-        cache: 'no-store'
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || result.error || 'Не удалось сохранить Rust+ авторизацию.');
-      alert(result.message || 'Авторизация Rust+ получена.');
-      await refreshRustPlusStatus();
+      if (extensionPayload.steamId !== session.steamid) throw new Error('SteamID Rust+ не совпадает с аккаунтом сайта. Войди в нужный Steam-аккаунт и повтори подключение.');
+      if (!confirm('Получить Rust+ токен для SteamID ' + extensionPayload.steamId + '?')) throw new Error('Импорт отменён. Повтори вход через Facepunch, если понадобится.');
+      document.getElementById('rustplusTokenInput').value = extensionPayload.token;
+      rustPlusPendingSteamId = extensionPayload.steamId;
+      document.getElementById('rustplusTokenHint').textContent = 'Токен получен из расширения. Теперь нажми «Сохранить токен защищённо».';
+      alert('Токен добавлен в поле. Теперь нажми «Сохранить токен защищённо».');
     } catch (error) {
-      alert(error.message || 'Ошибка подключения Rust+.');
+      alert(error.message || 'Ошибка получения Rust+ токена.');
     } finally {
       button.disabled = false;
-      button.textContent = 'Получить авторизацию из расширения';
+      button.textContent = '2. Получить токен из расширения';
     }
   }
   document.getElementById('rustplusImport').addEventListener('click', importRustPlusFromExtension);
+
+  async function saveRustPlusToken() {
+    const button = document.getElementById('rustplusSaveToken');
+    const tokenInput = document.getElementById('rustplusTokenInput');
+    const authToken = tokenInput.value.trim();
+    const sessionToken = localStorage.getItem(STEAM_USER_KEY) || '';
+    if (!sessionToken) { alert('Сначала войди на сайт через Steam.'); return; }
+    if (authToken.length < 20 || authToken.length > 4096 || /\s/.test(authToken)) {
+      alert('Вставь корректный Rust+ auth token. Пароль Steam не подходит.');
+      return;
+    }
+    button.disabled = true;
+    button.textContent = 'Сохраняем…';
+    try {
+      const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
+      const sessionResponse = await fetch(base + '/auth/steam/session?token=' + encodeURIComponent(sessionToken), { cache: 'no-store' });
+      const session = await sessionResponse.json();
+      if (!sessionResponse.ok || !session.steamid) throw new Error('Сессия Steam недействительна. Войди снова.');
+      if (rustPlusPendingSteamId && rustPlusPendingSteamId !== session.steamid) throw new Error('SteamID не совпадает. Повтори импорт расширения.');
+      const response = await fetch(base + '/api/rustplus/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionToken },
+        body: JSON.stringify({ steamId: session.steamid, token: authToken }),
+        cache: 'no-store'
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || result.error || 'Не удалось сохранить токен.');
+      tokenInput.value = '';
+      rustPlusPendingSteamId = '';
+      document.getElementById('rustplusTokenHint').textContent = result.message || 'Токен сохранён. Для живых данных может потребоваться дополнительная привязка сервера.';
+      await refreshRustPlusStatus();
+      alert(result.message || 'Rust+ токен сохранён.');
+    } catch (error) {
+      alert(error.message || 'Ошибка сохранения Rust+ токена.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Сохранить токен защищённо';
+    }
+  }
+  document.getElementById('rustplusSaveToken').addEventListener('click', saveRustPlusToken);
+  document.getElementById('rustplusClearToken').addEventListener('click', () => {
+    document.getElementById('rustplusTokenInput').value = '';
+    rustPlusPendingSteamId = '';
+    document.getElementById('rustplusTokenHint').textContent = 'Поле очищено.';
+  });
 
   async function refreshRustPlusStatus() {
     const stateEl = document.getElementById('rustplusState');
