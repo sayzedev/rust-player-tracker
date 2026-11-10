@@ -60,7 +60,7 @@
           <h3>Мониторинг сервера Rust</h3>
           <p class="hint">Подготовка подключения сервера</p>
           <div class="field"><label for="workerUrl">Адрес API Worker</label><input id="workerUrl" placeholder="https://имя-worker.workers.dev"></div>
-          <div class="field"><label for="serverSearch">Название Rust-сервера (необязательно)</label><input id="serverSearch" placeholder="Пустое поле — показать все серверы Rust"></div>
+          <div class="field"><label for="serverSearch">Название Rust-сервера (необязательно)</label><input id="serverSearch" placeholder="Оставь пустым, чтобы показать все серверы Rust"></div>
           <button class="btn secondary" id="searchServers">Показать серверы</button>
           <div id="serverResults" class="list"><div class="empty">Нажми «Показать серверы», чтобы открыть каталог публичных серверов Rust.</div></div>
           <p class="smallprint">Данные серверов предоставляются <a class="link" href="https://battlemetrics.ru" target="_blank" rel="noopener noreferrer">BattleMetrics.ru</a>. API-ключ хранится в Worker и не раскрывается браузеру.</p>
@@ -194,16 +194,12 @@
       return;
     }
     currentServerQuery = document.getElementById('serverSearch').value.trim();
-    if (currentServerQuery.length > 0 && currentServerQuery.length < 3) {
-      results.textContent = 'Для поиска введи минимум 3 символа или оставь поле пустым для каталога.';
-      return;
-    }
     currentServerPage = Math.max(1, page);
     localStorage.setItem(WORKER_KEY, base);
     results.textContent = 'Загружаем серверы Rust…';
     try {
       const params = new URLSearchParams({page: String(currentServerPage)});
-      if (currentServerQuery) params.set('q', currentServerQuery);
+      if (currentServerQuery.length >= 3) params.set('q', currentServerQuery);
       const response = await fetch(base + '/api/servers?' + params.toString());
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || 'Ошибка API: ' + response.status);
