@@ -13,7 +13,7 @@
     .brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f08a43,#a84422);display:grid;place-items:center;font-size:23px;font-weight:900}
     h1{font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:-.7px}.sub{color:var(--muted);font-size:13px}
     .tag{border:1px solid #5a3b2b;background:#2b201a;color:#f2a16e;padding:6px 10px;border-radius:999px;font-size:12px}
-    .tab-nav{display:flex;gap:8px;flex-wrap:wrap;margin:-10px 0 24px}.tab-btn{border:1px solid #394351;background:#1b2028;color:#cbd3dc;padding:10px 17px;border-radius:11px;font:700 14px system-ui;cursor:pointer}.tab-btn.active{background:#e87532;border-color:#e87532;color:#1a100b}.tab-panel{display:none}.tab-panel.active{display:block}.map-frame{background:#11161c;border:1px solid #35404e;border-radius:15px;overflow:hidden;margin-top:16px}.map-image{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;background:#0d2630}.map-details{display:flex;gap:12px;flex-wrap:wrap;color:#c3ccd6;font-size:13px;margin-top:14px}.map-details span{background:#111821;border:1px solid #34404e;border-radius:9px;padding:8px 11px}.map-note{font-size:12px;color:var(--muted);margin-top:12px}.hero{margin-bottom:24px}.hero h2{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:0 0 10px}.hero p{color:var(--muted);margin:0;max-width:650px}
+    .tab-nav{display:flex;gap:8px;flex-wrap:wrap;margin:-10px 0 24px}.tab-btn{border:1px solid #394351;background:#1b2028;color:#cbd3dc;padding:10px 17px;border-radius:11px;font:700 14px system-ui;cursor:pointer}.tab-btn.active{background:#e87532;border-color:#e87532;color:#1a100b}.tab-panel{display:none}.tab-panel.active{display:block}.map-frame{background:#11161c;border:1px solid #35404e;border-radius:15px;overflow:hidden;margin-top:12px;height:min(70vh,720px);min-height:360px;position:relative;touch-action:none;cursor:grab}.map-frame.dragging{cursor:grabbing}.map-stage{position:absolute;left:0;top:0;width:100%;transform-origin:0 0;will-change:transform}.map-image{display:block;width:100%;height:auto;max-height:none;object-fit:contain;background:#0d2630;pointer-events:none;user-select:none}.map-marker-layer{position:absolute;inset:0;pointer-events:none}.map-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;border:2px solid white;border-radius:50% 50% 50% 0;width:25px;height:25px;background:#e87532;color:#fff;font-size:11px;font-weight:900;box-shadow:0 3px 12px #0009;rotate:-45deg;cursor:pointer}.map-pin span{display:block;rotate:45deg}.map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.map-tools{display:flex;gap:7px;flex-wrap:wrap}.map-readout{font-size:12px;color:#b9c4d0}.map-marker-list{margin-top:18px}.map-marker-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#111821;border:1px solid #34404e;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}.map-marker-row small{display:block;color:#9ba7b5}.map-add-active{background:#e87532!important;color:#1a100b!important;border-color:#e87532!important}.map-details{display:flex;gap:12px;flex-wrap:wrap;color:#c3ccd6;font-size:13px;margin-top:14px}.map-details span{background:#111821;border:1px solid #34404e;border-radius:9px;padding:8px 11px}.map-note{font-size:12px;color:var(--muted);margin-top:12px}.hero{margin-bottom:24px}.hero h2{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:0 0 10px}.hero p{color:var(--muted);margin:0;max-width:650px}
     .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:linear-gradient(180deg,#1b2028,#171b21);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 12px 35px #0002}
     .card h3{font-size:17px;margin:0 0 5px}.hint{font-size:13px;color:var(--muted);margin:0 0 16px}
     label{display:block;font-size:13px;color:#c4ccd5;margin:0 0 7px}input{width:100%;background:#10141a;border:1px solid #394351;color:var(--text);border-radius:10px;padding:12px 13px;font:inherit;outline:none}input:focus{border-color:var(--orange);box-shadow:0 0 0 3px #e8753220}
@@ -73,7 +73,17 @@
     <section class="card tab-panel" id="mapPanel">
       <h3>Карта Rustafied.com — EU Long — Large</h3>
       <p class="hint">Актуальная опубликованная карта сервера. Нажми на изображение, чтобы открыть его в полном размере.</p>
-      <div class="map-frame"><a href="https://files.facepunch.com/rust/map-images/ab3f4432bc30e7b086f140f18262ab3ca8d7d82a519a014cba2f5d936a83cb0b/rustafied_4500_qpd8iredg0-l1h2eae5ffa.4500.1793621002774.290_ab3f4432bc30e7b086f140f18262ab3c.jpg" target="_blank" rel="noopener noreferrer"><img class="map-image" src="https://files.facepunch.com/rust/map-images/ab3f4432bc30e7b086f140f18262ab3ca8d7d82a519a014cba2f5d936a83cb0b/rustafied_4500_qpd8iredg0-l1h2eae5ffa.4500.1793621002774.290_ab3f4432bc30e7b086f140f18262ab3c.jpg" alt="Карта Rustafied EU Long Large"></a></div>
+      <div class="map-toolbar">
+        <div class="map-tools"><button class="btn secondary" id="mapZoomOut" type="button">−</button><button class="btn secondary" id="mapZoomIn" type="button">+</button><button class="btn secondary" id="mapReset" type="button">Сбросить вид</button><button class="btn secondary" id="mapAddMode" type="button">＋ Добавить метку</button></div>
+        <div class="map-readout" id="mapReadout">Нажми «Добавить метку», затем выбери точку на карте.</div>
+      </div>
+      <div class="map-frame" id="rustMapFrame">
+        <div class="map-stage" id="mapStage">
+          <img class="map-image" id="rustMapImage" src="https://files.facepunch.com/rust/map-images/ab3f4432bc30e7b086f140f18262ab3ca8d7d82a519a014cba2f5d936a83cb0b/rustafied_4500_qpd8iredg0-l1h2eae5ffa.4500.1793621002774.290_ab3f4432bc30e7b086f140f18262ab3c.jpg" alt="Карта Rustafied EU Long Large" draggable="false">
+          <div class="map-marker-layer" id="mapMarkerLayer"></div>
+        </div>
+      </div>
+      <div class="map-marker-list"><div class="list-head"><h3>Мои метки</h3><span class="count" id="mapMarkerCount">0 меток</span></div><div id="mapMarkerList"><div class="empty">Пока нет меток. Добавь первую на карте.</div></div></div>
       <div class="map-details"><span>Размер: 4500 × 4500</span><span>Seed: 574513490</span><span>IP: 195.60.166.130:28015</span></div>
       <p class="map-note">Карта загружается с Facepunch. Она соответствует опубликованному состоянию карты сервера; при следующем вайпе изображение может измениться.</p>
       <div class="actions" style="margin-top:15px"><a class="btn secondary" href="https://rust-data.com/en/servers/rustafiedcom-eu-long-large-61d8948b0c?tab=map" target="_blank" rel="noopener noreferrer">Открыть страницу карты ↗</a></div>
@@ -291,7 +301,94 @@
     mapPanel.classList.toggle('active', tab === 'map');
   }
   tabButtons.forEach(button => button.addEventListener('click', () => setTab(button.dataset.tab)));
+
   setTab('players');
+
+  // Интерактивная карта: масштабирование, перемещение и локальные пользовательские метки.
+  const mapFrame = document.getElementById('rustMapFrame');
+  const mapStage = document.getElementById('mapStage');
+  const mapImage = document.getElementById('rustMapImage');
+  const mapLayer = document.getElementById('mapMarkerLayer');
+  const mapReadout = document.getElementById('mapReadout');
+  const markerList = document.getElementById('mapMarkerList');
+  const markerCount = document.getElementById('mapMarkerCount');
+  const MAP_MARKERS_KEY = 'rust-player-tracker.rustplus-map-markers.v1';
+  let mapMarkers = read(MAP_MARKERS_KEY, []);
+  let mapScale = 1, mapX = 0, mapY = 0, mapDragging = false, mapMoved = false;
+  let dragStart = null, addMapMarker = false;
+  function paintMap() {
+    mapStage.style.transform = 'translate(' + mapX + 'px,' + mapY + 'px) scale(' + mapScale + ')';
+    mapLayer.replaceChildren();
+    mapMarkers.forEach((marker, index) => {
+      const pin = document.createElement('button');
+      pin.type = 'button'; pin.className = 'map-pin';
+      pin.style.left = marker.x + '%'; pin.style.top = marker.y + '%';
+      pin.title = marker.name + ' · X ' + marker.worldX + ' / Z ' + marker.worldZ;
+      const num = document.createElement('span'); num.textContent = String(index + 1); pin.append(num);
+      pin.addEventListener('click', e => { e.stopPropagation(); mapReadout.textContent = marker.name + ' · X: ' + marker.worldX + ' · Z: ' + marker.worldZ; });
+      mapLayer.append(pin);
+    });
+    markerList.replaceChildren();
+    markerCount.textContent = mapMarkers.length + ' меток';
+    if (!mapMarkers.length) { const empty = document.createElement('div'); empty.className='empty'; empty.textContent='Пока нет меток. Добавь первую на карте.'; markerList.append(empty); return; }
+    mapMarkers.forEach((marker, index) => {
+      const row = document.createElement('div'); row.className='map-marker-row';
+      const info = document.createElement('div'); info.textContent = marker.name;
+      const coords = document.createElement('small'); coords.textContent = 'X: ' + marker.worldX + ' · Z: ' + marker.worldZ; info.append(coords);
+      const remove = document.createElement('button'); remove.className='btn secondary'; remove.type='button'; remove.textContent='Удалить'; remove.addEventListener('click', () => { mapMarkers.splice(index,1); localStorage.setItem(MAP_MARKERS_KEY, JSON.stringify(mapMarkers)); paintMap(); });
+      row.append(info,remove); markerList.append(row);
+    });
+  }
+  function mapTransform() { mapStage.style.transform = 'translate(' + mapX + 'px,' + mapY + 'px) scale(' + mapScale + ')'; }
+  function zoomMap(factor, centerX, centerY) {
+    const rect = mapFrame.getBoundingClientRect();
+    const cx = centerX ?? rect.width / 2, cy = centerY ?? rect.height / 2;
+    const next = Math.max(1, Math.min(5, mapScale * factor));
+    const ratio = next / mapScale;
+    mapX = cx - (cx - mapX) * ratio; mapY = cy - (cy - mapY) * ratio; mapScale = next; mapTransform();
+  }
+  document.getElementById('mapZoomIn').addEventListener('click', () => zoomMap(1.25));
+  document.getElementById('mapZoomOut').addEventListener('click', () => zoomMap(.8));
+  document.getElementById('mapReset').addEventListener('click', () => { mapScale=1; mapX=0; mapY=0; mapTransform(); });
+  document.getElementById('mapAddMode').addEventListener('click', e => {
+    addMapMarker = !addMapMarker; e.currentTarget.classList.toggle('map-add-active', addMapMarker);
+    mapReadout.textContent = addMapMarker ? 'Режим метки включён: нажми на нужное место карты.' : 'Режим добавления меток выключен.';
+  });
+  mapFrame.addEventListener('wheel', e => { e.preventDefault(); const r=mapFrame.getBoundingClientRect(); zoomMap(e.deltaY < 0 ? 1.12 : .89, e.clientX-r.left, e.clientY-r.top); }, {passive:false});
+  mapFrame.addEventListener('pointerdown', e => {
+    if (e.target.closest('.map-pin')) return;
+    mapDragging=true; mapMoved=false; dragStart={x:e.clientX,y:e.clientY,baseX:mapX,baseY:mapY};
+    mapFrame.classList.add('dragging'); mapFrame.setPointerCapture(e.pointerId);
+  });
+  mapFrame.addEventListener('pointermove', e => {
+    if (!mapDragging || !dragStart) return;
+    const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y;
+    if (Math.abs(dx)+Math.abs(dy)>4) mapMoved=true;
+    mapX=dragStart.baseX+dx; mapY=dragStart.baseY+dy; mapTransform();
+  });
+  mapFrame.addEventListener('pointerup', e => {
+    if (!mapDragging) return;
+    mapDragging=false; mapFrame.classList.remove('dragging');
+    if (!mapMoved && addMapMarker && !e.target.closest('.map-pin')) {
+      const rect=mapFrame.getBoundingClientRect();
+      const localX=(e.clientX-rect.left-mapX)/mapScale;
+      const localY=(e.clientY-rect.top-mapY)/mapScale;
+      const w=mapStage.clientWidth, h=mapStage.clientHeight;
+      const px=Math.max(0,Math.min(100,localX/w*100)), py=Math.max(0,Math.min(100,localY/h*100));
+      const name=prompt('Название метки (например, Дом или Фарм):');
+      if (name && name.trim()) {
+        const worldX=Math.round((px/100-.5)*4500), worldZ=Math.round((.5-py/100)*4500);
+        mapMarkers.push({name:name.trim().slice(0,50),x:px,y:py,worldX,worldZ});
+        localStorage.setItem(MAP_MARKERS_KEY,JSON.stringify(mapMarkers)); paintMap();
+        mapReadout.textContent='Метка добавлена: X ' + worldX + ' · Z ' + worldZ;
+      }
+      addMapMarker=false; document.getElementById('mapAddMode').classList.remove('map-add-active');
+    }
+    dragStart=null;
+  });
+  mapImage.addEventListener('load', () => { paintMap(); });
+  paintMap();
+
 
   document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(input.value); });
