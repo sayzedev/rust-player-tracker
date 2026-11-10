@@ -225,7 +225,7 @@ export default {
       });
     }
 
-    const rustPlusActionMatch = url.pathname.match(/^\/api\/rustplus\/(devices|devices\/add|devices\/remove|devices\/\d+\/toggle|time|events|entity\/\d+)$/);
+    const rustPlusActionMatch = url.pathname.match(/^\/api\/rustplus\/(devices|devices\/add|devices\/remove|devices\/\d+\/toggle|time|events|history|entity\/\d+)$/);
     if (rustPlusActionMatch) {
       const route = rustPlusActionMatch[1];
       const allowedMethod = route === "devices" || route === "time" || route.startsWith("entity/") ? "GET" : "POST";
