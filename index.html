@@ -585,8 +585,8 @@
       };
       let attempt = await requestClear(base);
       if ((attempt.response.status === 404 || attempt.result.error === 'not_found') &&
-          base !== DEFAULT_WORKER.replace(/\\/$/, '')) {
-        attempt = await requestClear(DEFAULT_WORKER.replace(/\\/$/, ''));
+          base !== DEFAULT_WORKER.replace(/\/$/, '')) {
+        attempt = await requestClear(DEFAULT_WORKER.replace(/\/$/, ''));
       }
       const { response, result } = attempt;
       if (!response.ok || !result.cleared) throw new Error(result.message || result.error || 'Не удалось очистить привязку.');
