@@ -134,6 +134,17 @@ export default {
 
     const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info)$/);
     if (rustPlusMatch) {
+      if (env.RUSTPLUS_CLOUD) {
+        const id = env.RUSTPLUS_CLOUD.idFromName("primary-rust-server");
+        const stub = env.RUSTPLUS_CLOUD.get(id);
+        const route = rustPlusMatch[1];
+        const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/" + route);
+        const body = await cloudResponse.text();
+        return new Response(body, {
+          status: cloudResponse.status,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+        });
+      }
       const backendBase = String(env.RUSTPLUS_BACKEND_URL || "").trim().replace(/\/$/, "");
       const backendSecret = String(env.RUSTPLUS_BACKEND_SECRET || "");
       if (!backendBase || !backendSecret) {
@@ -302,3 +313,254 @@ export default {
     }
   }
 };
+
+
+// Cloud-hosted Rust+ connection. Pairing values must be configured as Worker secrets.
+function rpVarint(value) {
+  let n = BigInt(value);
+  const out = [];
+  while (n > 127n) {
+    out.push(Number((n & 127n) | 128n));
+    n >>= 7n;
+  }
+  out.push(Number(n));
+  return out;
+}
+function rpFieldVarint(field, value) {
+  return [...rpVarint((field << 3) | 0), ...rpVarint(value)];
+}
+function rpFieldBytes(field, bytes) {
+  return [...rpVarint((field << 3) | 2), ...rpVarint(bytes.length), ...bytes];
+}
+function rpRequest(seq, playerId, playerToken, requestField) {
+  const body = [
+    ...rpFieldVarint(1, seq),
+    ...rpFieldVarint(2, BigInt(playerId)),
+    ...rpFieldVarint(3, BigInt(playerToken)),
+    ...rpFieldBytes(requestField, new Uint8Array())
+  ];
+  return new Uint8Array(body);
+}
+function rpDecode(bytes) {
+  const fields = {};
+  let i = 0;
+  const readVarint = () => {
+    let value = 0n, shift = 0n;
+    while (i < bytes.length) {
+      const b = bytes[i++];
+      value |= BigInt(b & 127) << shift;
+      if (!(b & 128)) return value;
+      shift += 7n;
+      if (shift > 70n) throw new Error("Invalid protobuf varint");
+    }
+    throw new Error("Truncated protobuf varint");
+  };
+  while (i < bytes.length) {
+    const key = Number(readVarint());
+    const field = key >> 3, wire = key & 7;
+    let value;
+    if (wire === 0) value = readVarint();
+    else if (wire === 1) { value = bytes.slice(i, i + 8); i += 8; }
+    else if (wire === 2) { const len = Number(readVarint()); value = bytes.slice(i, i + len); i += len; }
+    else if (wire === 5) { value = bytes.slice(i, i + 4); i += 4; }
+    else throw new Error("Unsupported protobuf wire type");
+    (fields[field] ||= []).push({ wire, value });
+  }
+  return fields;
+}
+function rpOne(fields, n) { return fields[n]?.[0]?.value; }
+function rpText(value) { return value ? new TextDecoder().decode(value) : ""; }
+function rpFloat(value) {
+  if (!value || value.length !== 4) return 0;
+  return new DataView(value.buffer, value.byteOffset, 4).getFloat32(0, true);
+}
+function rpNumber(value) { return value === undefined ? 0 : Number(value); }
+function rpDecodeResponse(buffer) {
+  const outer = rpDecode(new Uint8Array(buffer));
+  const responseBytes = rpOne(outer, 1);
+  if (!responseBytes) return { type: "broadcast" };
+  const response = rpDecode(responseBytes);
+  if (rpOne(response, 5)) {
+    const err = rpDecode(rpOne(response, 5));
+    return { type: "error", error: rpText(rpOne(err, 1)) || "Rust+ rejected the request" };
+  }
+  if (rpOne(response, 6)) {
+    const info = rpDecode(rpOne(response, 6));
+    return { type: "info", info: {
+      name: rpText(rpOne(info, 1)), header_image: rpText(rpOne(info, 2)),
+      url: rpText(rpOne(info, 3)), map: rpText(rpOne(info, 4)),
+      map_size: rpNumber(rpOne(info, 5)), wipe_time: rpNumber(rpOne(info, 6)),
+      players: rpNumber(rpOne(info, 7)), max_players: rpNumber(rpOne(info, 8)),
+      queued_players: rpNumber(rpOne(info, 9))
+    }};
+  }
+  if (rpOne(response, 9)) {
+    const team = rpDecode(rpOne(response, 9));
+    return { type: "team", team: {
+      leader_steam_id: String(rpOne(team, 1) || ""),
+      members: (team[2] || []).map(x => {
+        const m = rpDecode(x.value);
+        return { steamid: String(rpOne(m, 1) || ""), name: rpText(rpOne(m, 2)),
+          x: rpFloat(rpOne(m, 3)), y: rpFloat(rpOne(m, 4)),
+          online: Boolean(rpOne(m, 5)), alive: Boolean(rpOne(m, 7)) };
+      })
+    }};
+  }
+  if (rpOne(response, 8)) {
+    const map = rpDecode(rpOne(response, 8));
+    const image = rpOne(map, 3);
+    let binary = "";
+    if (image) for (let i = 0; i < image.length; i += 0x8000) binary += String.fromCharCode(...image.subarray(i, i + 0x8000));
+    return { type: "map", map: {
+      width: rpNumber(rpOne(map, 1)), height: rpNumber(rpOne(map, 2)),
+      image_data_url: image ? "data:image/jpeg;base64," + btoa(binary) : null,
+      ocean_margin: rpNumber(rpOne(map, 4)),
+      monuments: (map[5] || []).map(x => {
+        const m = rpDecode(x.value);
+        return { token: rpText(rpOne(m, 1)), x: rpFloat(rpOne(m, 2)), y: rpFloat(rpOne(m, 3)) };
+      })
+    }};
+  }
+  if (rpOne(response, 13)) {
+    const markers = rpDecode(rpOne(response, 13));
+    return { type: "markers", markers: (markers[1] || []).map(x => {
+      const m = rpDecode(x.value);
+      return { id: rpNumber(rpOne(m, 1)), type: rpNumber(rpOne(m, 2)),
+        x: rpFloat(rpOne(m, 3)), y: rpFloat(rpOne(m, 4)),
+        steamid: String(rpOne(m, 5) || ""), rotation: rpFloat(rpOne(m, 6)),
+        radius: rpFloat(rpOne(m, 7)), name: rpText(rpOne(m, 11)) };
+    })};
+  }
+  return { type: "unknown", seq: String(rpOne(response, 1) || "") };
+}
+
+export class RustPlusCloud {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    this.ws = null;
+    this.state = "not_configured";
+    this.lastError = null;
+    this.connectedAt = null;
+    this.seq = 0;
+    this.pending = new Map();
+    this.lastInfo = null;
+    this.lastTeam = null;
+    this.lastMap = null;
+    this.lastMarkers = null;
+    this.connecting = false;
+  }
+  config() {
+    const host = String(this.env.RUSTPLUS_SERVER_IP || "").trim();
+    const port = Number(this.env.RUSTPLUS_APP_PORT || 0);
+    const playerId = String(this.env.RUSTPLUS_PLAYER_ID || "").trim();
+    const token = String(this.env.RUSTPLUS_PLAYER_TOKEN || "").trim();
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535 ||
+        !/^\d{17}$/.test(playerId) || !/^-?\d+$/.test(token)) return null;
+    return { host, port, playerId, token };
+  }
+  async ensureConnected() {
+    const cfg = this.config();
+    if (!cfg) { this.state = "pairing_data_missing"; return; }
+    if (this.ws && this.ws.readyState <= 1) return;
+    if (this.connecting) return;
+    this.connecting = true;
+    this.state = "connecting";
+    try {
+      const ws = new WebSocket("ws://" + cfg.host + ":" + cfg.port);
+      this.ws = ws;
+      ws.addEventListener("open", () => {
+        this.state = "connected";
+        this.connectedAt = new Date().toISOString();
+        this.lastError = null;
+        this.sendRequest(8).catch(() => {});
+        this.schedule();
+      });
+      ws.addEventListener("message", async event => {
+        try {
+          const data = event.data instanceof ArrayBuffer ? event.data : await event.data.arrayBuffer();
+          const result = rpDecodeResponse(data);
+          if (result.type === "error") {
+            this.lastError = result.error;
+            this.state = "auth_error";
+          } else if (result.type === "info") this.lastInfo = result.info;
+          else if (result.type === "team") this.lastTeam = result.team;
+          else if (result.type === "map") this.lastMap = result.map;
+          else if (result.type === "markers") this.lastMarkers = result.markers;
+          const response = rpDecode(new Uint8Array(data));
+          const inner = rpOne(response, 1);
+          if (inner) {
+            const parsed = rpDecode(inner);
+            const seq = String(rpOne(parsed, 1) || "");
+            const waiter = this.pending.get(seq);
+            if (waiter) { this.pending.delete(seq); waiter(result); }
+          }
+        } catch (e) { this.lastError = String(e?.message || e).slice(0, 200); }
+      });
+      ws.addEventListener("error", () => {
+        this.lastError = "WebSocket connection error";
+        this.state = "error";
+      });
+      ws.addEventListener("close", () => {
+        this.ws = null;
+        this.connecting = false;
+        if (this.state !== "auth_error") this.state = "disconnected";
+        this.schedule();
+      });
+      this.connecting = false;
+    } catch (e) {
+      this.connecting = false;
+      this.state = "error";
+      this.lastError = String(e?.message || e).slice(0, 200);
+      this.schedule();
+    }
+  }
+  async sendRequest(field) {
+    const cfg = this.config();
+    if (!cfg || !this.ws || this.ws.readyState !== 1) throw new Error("Rust+ is not connected");
+    const seq = ++this.seq;
+    const packet = rpRequest(seq, cfg.playerId, cfg.token, field);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pending.delete(String(seq)); reject(new Error("Rust+ request timeout")); }, 12000);
+      this.pending.set(String(seq), result => { clearTimeout(timer); resolve(result); });
+      this.ws.send(packet);
+    });
+  }
+  schedule() {
+    this.ctx.storage.setAlarm(Date.now() + 4 * 60 * 1000).catch(() => {});
+  }
+  async alarm() {
+    if (!this.config()) { this.state = "pairing_data_missing"; return; }
+    if (!this.ws || this.ws.readyState !== 1) {
+      this.connecting = false;
+      await this.ensureConnected();
+    } else {
+      try { await this.sendRequest(8); } catch { try { this.ws.close(); } catch {} }
+      this.schedule();
+    }
+  }
+  async fetch(request) {
+    const path = new URL(request.url).pathname.replace(/^\//, "");
+    if (path === "status" || path === "connect") {
+      await this.ensureConnected();
+      return Response.json({
+        service: "rustplus-cloud", state: this.state,
+        configured: Boolean(this.config()), connected: Boolean(this.ws && this.ws.readyState === 1),
+        connected_at: this.connectedAt, error: this.lastError,
+        free_tier_note: "Cloudflare Durable Objects Free limits apply; continuous connection is being tested."
+      });
+    }
+    await this.ensureConnected();
+    if (!this.ws || this.ws.readyState !== 1) return Response.json({ error: "rustplus_not_connected", state: this.state, message: this.lastError || "Rust+ is not connected." }, { status: 503 });
+    const field = ({ info: 8, team: 11, map: 10, markers: 18 })[path];
+    if (!field) return Response.json({ error: "not_found" }, { status: 404 });
+    try {
+      const result = await this.sendRequest(field);
+      if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
+      const data = ({ info: this.lastInfo, team: this.lastTeam, map: this.lastMap, markers: this.lastMarkers })[path];
+      return Response.json(data || result);
+    } catch (e) {
+      return Response.json({ error: "rustplus_request_failed", message: String(e?.message || e) }, { status: 502 });
+    }
+  }
+}
