@@ -942,13 +942,13 @@ export class RustPlusCloud {
           reply = "⏱ Таймер запущен на " + seconds + " сек. Отправлю: " + message;
         }
       } else if (command === "!help") {
-        reply = "Rust Bot: !help !online !team !server !map !timer";
-      } else if (command === "!online" || command === "!team" || command === "!who") {
+        reply = "Rust Bot: !help !p !team !server !map !timer";
+      } else if (command === "!p" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
         else {
           const members = Array.isArray(result.team?.members) ? result.team.members : [];
-          if (command === "!online") {
+          if (command === "!p") {
             const online = members.filter(member => member.online);
             const names = online.slice(0, 4).map(member => member.name || "Игрок");
             reply = ("Онлайн команды: " + online.length + "/" + members.length + (names.length ? " · " + names.join(", ") : "")).slice(0, 155);
