@@ -565,7 +565,7 @@
     if (!confirm('Очистить сохранённую Rust+ привязку, отключить Companion и удалить историю командного чата? Авторизация Facepunch останется сохранена.')) return;
     const button = document.getElementById('rustplusPairingClear');
     const hint = document.getElementById('rustplusPairingHint');
-    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\\/$/, '');
+    const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
     const sessionToken = localStorage.getItem(STEAM_USER_KEY) || '';
     if (!sessionToken) { alert('Сначала войди на сайт через Steam.'); return; }
     button.disabled = true;
