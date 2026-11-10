@@ -57,7 +57,7 @@
       <aside>
         <div class="card" id="overviewCard">
           <h3>Обзор</h3><p class="hint">Текущий список отслеживания</p>
-          <div class="stats"><div class="stat"><strong id="totalPlayers">0</strong><span>Добавлено игроков</span></div><div class="stat"><strong>—</strong><span>Сейчас онлайн</span></div></div>
+          <div class="stats"><div class="stat"><strong id="totalPlayers">0</strong><span>Добавлено игроков</span></div><div class="stat"><strong id="onlinePlayers">0</strong><span>В сети Steam</span></div></div>
         </div>
         <div class="card" id="serverCard" style="margin-top:18px">
           <h3>Каталог серверов Rust</h3>
@@ -244,6 +244,7 @@
 
   function render() {
     document.getElementById('totalPlayers').textContent = players.length;
+    document.getElementById('onlinePlayers').textContent = players.filter(p => p.profile && Number(p.profile.personastate) > 0).length;
     countEl.textContent = players.length + (players.length === 1 ? ' игрок' : players.length >= 2 && players.length <= 4 ? ' игрока' : ' игроков');
     playersEl.replaceChildren();
     if (!players.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Пока нет игроков. Добавь Steam ID выше.'; playersEl.append(empty); return; }
