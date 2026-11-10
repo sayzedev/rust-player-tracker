@@ -7,7 +7,7 @@ This prototype moves the Rust+ connection into a Cloudflare Durable Object. It d
 - This is a test implementation; it has not yet been deployed or verified against a live Rust server.
 - Cloudflare Workers Free currently includes 13,000 GB-seconds/day for Durable Objects and 100,000 Durable Object requests/day.
 - An always-open outbound WebSocket is not hibernatable. Cloudflare documents a 15-minute outbound-connection eviction protection window; this implementation sends a small Rust+ info request every 4 minutes to keep the object active. Actual uptime and usage must be measured in the dashboard.
-- A 128 MB Durable Object running continuously would use roughly 10,800 GB-seconds/day before other activity, so the free-tier headroom is limited. The service may stop responding if the free quota is exceeded. Do not assume 24/7 reliability until tested.
+- A continuously active Durable Object is billed for its allocated 128 MB. At 24/7 uptime this is about 11,059 GB-seconds/day, leaving only about 1,941 GB-seconds/day from the 13,000 GB-s free allowance for this object. The four-minute keepalive alarm intentionally keeps the connection alive, so expect nearly full-time duration usage. If the free quota is exceeded, Cloudflare says further operations of that metered type fail until the daily reset; it should not silently switch this test to paid usage. The service may stop responding if the free quota is exceeded. Do not assume 24/7 reliability until tested.
 - Only configure one Rust server for this initial test.
 
 ## Required Cloudflare Worker secrets
