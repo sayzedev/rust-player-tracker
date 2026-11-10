@@ -550,7 +550,8 @@ function rpDecodeResponse(buffer) {
         const m = rpDecode(x.value);
         return { steamid: String(rpOne(m, 1) || ""), name: rpText(rpOne(m, 2)),
           x: rpFloat(rpOne(m, 3)), y: rpFloat(rpOne(m, 4)),
-          online: Boolean(rpOne(m, 5)), alive: Boolean(rpOne(m, 7)) };
+          online: Boolean(rpOne(m, 5)), spawn_time: rpNumber(rpOne(m, 6)),
+          alive: Boolean(rpOne(m, 7)), death_time: rpNumber(rpOne(m, 8)) };
       })
     }};
   }
@@ -1037,10 +1038,18 @@ export class RustPlusCloud {
       next[id] = {
         name: String(member.name || "Игрок"),
         alive: Boolean(member.alive),
+        death_time: Number(member.death_time || 0),
+        spawn_time: Number(member.spawn_time || 0),
         x: Number.isFinite(x) ? x : 0,
         y: Number.isFinite(y) ? y : 0
       };
-      if (old && old.alive === true && member.alive === false) {
+      // Rust+ increments deathTime for every death; this catches deaths even
+      // when a short alive/dead transition happens between polling intervals.
+      const died = old && (
+        (next[id].death_time > 0 && next[id].death_time > Number(old.death_time || 0)) ||
+        (old.alive === true && member.alive === false)
+      );
+      if (died) {
         const location = rustGridLocation(old.x, old.y, Number(this.lastInfo?.map_size || 0));
         const who = id === cfg.playerId ? "Ты погиб" : (old.name + " погиб");
         notices.push("☠️ " + who + ". Последняя позиция: " + location);
