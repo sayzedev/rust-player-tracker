@@ -1219,6 +1219,17 @@ export class RustPlusCloud {
       }
     }
     await this.ctx.storage.put(key, next);
+    const history = await this.ctx.storage.get("rustplus_team_history") || [];
+    for (const member of members) {
+      const id = String(member.steamid || "");
+      if (!/^[0-9]{17}$/.test(id) || !member.online) continue;
+      history.push({
+        steamid: id, name: String(member.name || "Игрок"),
+        x: Number(member.x || 0), y: Number(member.y || 0),
+        alive: Boolean(member.alive), at: Date.now()
+      });
+    }
+    await this.ctx.storage.put("rustplus_team_history", history.slice(-1500));
     for (const notice of notices.slice(0, 4)) {
       try { await this.sendRequest(13, rpEncodeTextMessage(notice.slice(0, 155))); }
       catch (e) { this.lastError = String(e?.message || e).slice(0, 200); break; }
@@ -1424,6 +1435,7 @@ export class RustPlusCloud {
 
     if (path === "devices") return Response.json({ devices: await this.ctx.storage.get("rustplus_devices") || [] });
     if (path === "events") return Response.json({ events: await this.ctx.storage.get("rustplus_entity_events") || [] });
+    if (path === "history") return Response.json({ history: await this.ctx.storage.get("rustplus_team_history") || [] });
     if (path === "time") {
       const result = await this.sendRequest(9);
       if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
