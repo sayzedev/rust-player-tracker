@@ -154,6 +154,14 @@
         </div>
         <p class="map-note" id="rustplusDeviceStatus">Для добавления нужен Entity ID из Rust+ привязки устройства. Устройства других игроков недоступны без их разрешения.</p>
         <div id="rustplusDevices" class="rustplus-device-list"><div class="empty">Пока нет добавленных устройств.</div></div>
+        <div class="divider" style="margin:16px 0;border-top:1px solid #34404e"></div>
+        <h3>Группы переключателей</h3>
+        <div class="rustplus-device-form" style="grid-template-columns:1fr 2fr auto">
+          <input id="rustplusGroupName" maxlength="40" placeholder="Название группы">
+          <input id="rustplusGroupIds" placeholder="ID переключателей через запятую">
+          <button class="btn primary" id="rustplusGroupAdd" type="button">Создать группу</button>
+        </div>
+        <div id="rustplusGroups" class="rustplus-device-list"><div class="empty">Пока нет групп.</div></div>
       </section>
       <h3>Rust+ Companion</h3>
       <p class="hint">Проверка подключения Rust+ и состояние Companion-сервиса</p>
@@ -785,6 +793,13 @@
     button.disabled = false;
     button.textContent = 'Загрузить данные Rust+';
   }
+  document.getElementById('rustplusGroupAdd').addEventListener('click',async()=>{
+    const name=document.getElementById('rustplusGroupName').value.trim();
+    const ids=document.getElementById('rustplusGroupIds').value.split(',').map(value=>Number(value.trim())).filter(Number.isSafeInteger);
+    const status=document.getElementById('rustplusDeviceStatus');
+    try{const result=await rustPlusPost('groups/save',{name,device_ids:ids});await refreshRustPlusGroups();document.getElementById('rustplusGroupName').value='';document.getElementById('rustplusGroupIds').value='';status.textContent='Группа создана.';}
+    catch(error){status.textContent=error.message;}
+  });
   document.getElementById('rustplusNotifyEnable').addEventListener('click',async()=>{
     const status=document.getElementById('rustplusDeviceStatus');
     if(!('Notification' in window)){status.textContent='Этот браузер не поддерживает уведомления.';return;}
@@ -863,8 +878,16 @@
   }
   let lastRustPlusDeviceEventAt = 0;
   let rustPlusEventsPrimed = false;
+  async function refreshRustPlusGroups(){
+    const data=await rustPlusGet('groups');const root=document.getElementById('rustplusGroups');root.replaceChildren();
+    if(!Array.isArray(data.groups)||!data.groups.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Пока нет групп.';root.append(empty);return;}
+    for(const group of data.groups){const row=document.createElement('div');row.className='rustplus-device';const info=document.createElement('div');const title=document.createElement('strong');title.textContent=group.name;const meta=document.createElement('small');meta.textContent=(group.device_ids||[]).length+' переключателей';info.append(title,meta);const actions=document.createElement('div');actions.className='rustplus-device-actions';
+      for(const [label,value] of [['Включить всё',true],['Выключить всё',false]]){const button=document.createElement('button');button.className='btn secondary';button.type='button';button.textContent=label;button.addEventListener('click',async()=>{button.disabled=true;try{const result=await rustPlusPost('groups/toggle',{id:group.id,value});renderRustPlusDevices(result.devices||[]);document.getElementById('rustplusDeviceStatus').textContent='Обновлено переключателей: '+result.updated;}catch(error){document.getElementById('rustplusDeviceStatus').textContent=error.message;}finally{button.disabled=false;}});actions.append(button);}
+      const remove=document.createElement('button');remove.className='btn secondary';remove.type='button';remove.textContent='Удалить';remove.addEventListener('click',async()=>{try{await rustPlusPost('groups/remove',{id:group.id});await refreshRustPlusGroups();}catch(error){document.getElementById('rustplusDeviceStatus').textContent=error.message;}});actions.append(remove);row.append(info,actions);root.append(row);}
+  }
   async function refreshRustPlusDevices(){
     const data=await rustPlusGet('devices');renderRustPlusDevices(data.devices||[]);
+    await refreshRustPlusGroups();
     const historyData=await rustPlusGet('history');const historyRoot=document.getElementById('rustplusTeamHistory');historyRoot.replaceChildren();
     const historyItems=Array.isArray(historyData.history)?historyData.history.slice(-8).reverse():[];
     if(!historyItems.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='История пока пуста. Она начнёт собираться, когда Worker опросит команду.';historyRoot.append(empty);}
