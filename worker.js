@@ -134,7 +134,7 @@ export default {
 
     const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info)$/);
     if (rustPlusMatch) {
-      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
       const rustPlusSession = env.STEAM_SESSION_SECRET
         ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
         : null;
