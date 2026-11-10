@@ -48,3 +48,17 @@ The status endpoint starts the cloud connection. A successful WebSocket handshak
 ## Current implementation scope
 
 The code implements a minimal Rust+ protobuf client for info, team, map, and map markers. Smart switch/alarm/storage entity actions are not exposed yet. Those should be added only after the cloud connection and response decoding are confirmed against a real paired server.
+
+
+## Automatic deployment from GitHub
+
+A GitHub Actions workflow is included at `.github/workflows/deploy-worker.yml`. It deploys the Worker and applies Durable Object migrations whenever `worker.js` or `wrangler.toml` changes.
+
+For security, the workflow requires two GitHub repository Actions secrets; they must be created by the repository owner and must never be committed:
+
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token with permission to edit Workers scripts for the account.
+- `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID.
+
+Until those two secrets exist, the workflow intentionally stops before deployment. I cannot create Cloudflare credentials or authorize deployment from GitHub without access granted by the account owner.
+
+The Rust+ pairing secrets listed above are separate and must be configured in the Cloudflare Worker environment. Do not share them in chat or add them to the Git repository.
