@@ -933,8 +933,8 @@ export class RustPlusCloud {
       if (command === "!timer") {
         const commandText = text.slice(commandMatch.index + commandMatch[0].length).trim();
         const parts = commandText.split(/\\s+/);
-        const seconds = Number(parts[1]);
-        const message = parts.slice(2).join(" ").trim();
+        const seconds = Number(parts[0]);
+        const message = parts.slice(1).join(" ").trim();
         if (!Number.isInteger(seconds) || seconds < 5 || seconds > 86400 || !message || message.length > 100) {
           reply = "Формат: !timer 30 слово (5 сек — 24 часа)";
         } else {
