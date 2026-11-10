@@ -27,6 +27,7 @@
     .modal-backdrop{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:18px;background:#05070bd9;backdrop-filter:blur(8px)}.modal-backdrop.open{display:flex}.player-modal{width:min(620px,100%);max-height:min(88vh,800px);overflow:auto;background:linear-gradient(155deg,#222b37,#151a21 65%,#241d19);border:1px solid #465363;border-radius:22px;padding:22px;box-shadow:0 24px 90px #000b;position:relative}.modal-close{position:absolute;right:16px;top:16px;width:36px;height:36px;border-radius:10px;border:1px solid #465363;background:#252e39;color:#fff;font-size:20px;cursor:pointer}.modal-head{display:flex;align-items:center;gap:16px;padding:8px 42px 20px 0;border-bottom:1px solid #394452}.modal-avatar{width:82px;height:82px;object-fit:cover;border-radius:20px;border:2px solid #69798c;background:#2b3542}.modal-name{font-size:23px;font-weight:850;line-height:1.2;overflow-wrap:anywhere}.modal-id{font:11px ui-monospace,monospace;color:#9ba7b5;margin-top:7px;overflow-wrap:anywhere}.modal-status{display:inline-block;margin-top:9px;padding:5px 10px;border-radius:999px;background:#183528;border:1px solid #28583e;color:#9be6b7;font-size:12px;font-weight:700}.modal-section-title{font-size:13px;color:#aab5c2;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:20px 0 10px}.modal-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.modal-stat{background:#111821;border:1px solid #34404e;border-radius:13px;padding:14px}.modal-stat strong{display:block;font-size:25px;line-height:1.2;color:#fff}.modal-stat span{font-size:12px;color:#9ba7b5}.modal-info{background:#111821;border:1px solid #34404e;border-radius:12px;padding:13px;color:#c4ced9;font-size:13px;line-height:1.7}.modal-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
     .empty{padding:24px 12px;text-align:center;color:var(--muted);border:1px dashed #394351;border-radius:12px;font-size:13px}
     .rustplus-output{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;background:#0d1218;border:1px solid #303a46;border-radius:10px;padding:12px;color:#cbd5df;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;min-height:68px}
+    .rustplus-map-preview{display:block;width:100%;height:auto;max-height:360px;object-fit:contain;background:#0d2630;border:1px solid #303a46;border-radius:10px;margin-top:10px}
     .server-status{display:flex;align-items:center;gap:9px;margin:14px 0 8px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:#8b929c;display:inline-block}
     .server-box{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:14px;margin-top:14px}.server-box p{color:var(--muted);font-size:13px;margin:8px 0 0}
     .smallprint{color:var(--muted);font-size:12px;margin-top:18px}.footer{margin-top:24px;color:#77818d;font-size:12px;text-align:center}
@@ -116,7 +117,7 @@
           <div><h3>Сервер</h3><pre class="rustplus-output" id="rustplusInfo">Пока нет данных.</pre></div>
           <div><h3>Команда</h3><pre class="rustplus-output" id="rustplusTeam">Пока нет данных.</pre></div>
           <div><h3>Метки карты</h3><pre class="rustplus-output" id="rustplusMarkers">Пока нет данных.</pre></div>
-          <div><h3>Карта Rust+</h3><pre class="rustplus-output" id="rustplusMap">Пока нет данных.</pre></div>
+          <div><h3>Карта Rust+</h3><img id="rustplusMapImage" class="rustplus-map-preview" alt="Живая карта Rust+" hidden><pre class="rustplus-output" id="rustplusMap">Пока нет данных.</pre></div>
         </div>
       </div>
       <p class="map-note">Данные загружаются с подключённого Companion-сервиса. Для живой карты, команды и меток нужен постоянно работающий Node.js сервис и завершённая привязка к серверу Rust.</p>
@@ -441,8 +442,16 @@
         const response = await fetch(base + '/api/rustplus/' + route, {cache:'no-store'});
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || data.error || 'HTTP ' + response.status);
-        el.textContent = JSON.stringify(data, null, 2);
+        if (route === 'map' && data.image_data_url) {
+          const mapImage = document.getElementById('rustplusMapImage');
+          mapImage.src = data.image_data_url;
+          mapImage.hidden = false;
+          el.textContent = 'Размер: ' + (data.width || '?') + ' × ' + (data.height || '?') + '\nМонументов: ' + (Array.isArray(data.monuments) ? data.monuments.length : 0);
+        } else {
+          el.textContent = JSON.stringify(data, null, 2);
+        }
       } catch (error) {
+        if (route === 'map') document.getElementById('rustplusMapImage').hidden = true;
         el.textContent = 'Недоступно: ' + (error.message || 'ошибка запроса');
       }
     }));
