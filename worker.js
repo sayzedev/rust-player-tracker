@@ -1051,8 +1051,11 @@ export class RustPlusCloud {
       );
       if (died) {
         const location = rustGridLocation(old.x, old.y, Number(this.lastInfo?.map_size || 0));
-        const who = id === cfg.playerId ? "Ты погиб" : (old.name + " погиб");
-        notices.push("☠️ " + who + ". Последняя позиция: " + location);
+        const isOwner = id === String(cfg.playerId || "");
+        const who = isOwner
+          ? (old.name + " (владелец Steam-аккаунта) погиб")
+          : (old.name + " погиб");
+        notices.push("☠️ " + who + ". Место смерти: " + location);
       }
     }
     await this.ctx.storage.put(key, next);
