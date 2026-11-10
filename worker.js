@@ -583,6 +583,7 @@ export class RustPlusCloud {
   }
 
   async syncPairingFromHistory() {
+    await this.ctx.storage.delete("rustplus_connect_error");
     const authToken = String(await this.ctx.storage.get("rustplus_auth_token") || "");
     const steamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
     if (!authToken || !/^\d{17}$/.test(steamId)) {
@@ -971,6 +972,8 @@ export class RustPlusCloud {
       if (!/^[0-9]{17}$/.test(steamId) || authToken.length < 20 || authToken.length > 4096 || /\s/.test(authToken)) {
         return Response.json({ error: "invalid_credentials" }, { status: 400 });
       }
+      await this.ctx.storage.delete("rustplus_connect_error");
+      await this.ctx.storage.delete("rustplus_connect_started_at");
       const previousSteamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
       const previousAuthToken = String(await this.ctx.storage.get("rustplus_auth_token") || "");
       if (previousSteamId && previousSteamId !== steamId) await this.ctx.storage.delete("rustplus_pairing");
