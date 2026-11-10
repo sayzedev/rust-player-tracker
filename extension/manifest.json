@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Rust Player Tracker — Rust+ Connector",
+  "version": "1.0.0",
+  "description": "Передаёт авторизацию Rust+ с официальной страницы Facepunch на Rust Player Tracker только по запросу пользователя.",
+  "permissions": [
+    "storage",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://companion-rust.facepunch.com/*",
+    "https://sayzedev.github.io/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://sayzedev.github.io/rust-player-tracker/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "Rust+ Connector"
+  }
+}
