@@ -925,11 +925,14 @@ export class RustPlusCloud {
     if (processed.includes(commandKey)) return;
     await this.ctx.storage.put("rustplus_processed_commands", [...processed, commandKey].slice(-150));
 
-    const command = text.toLowerCase().split(/\s+/)[0];
+    // Rust+ broadcasts may include extra text around the player's command.
+    const commandMatch = text.match(/!(timer|help|p|online|team|who|server|status|map)\\b/i);
+    const command = commandMatch ? "!" + commandMatch[1].toLowerCase() : "";
     let reply = "";
     try {
       if (command === "!timer") {
-        const parts = text.trim().split(/\\s+/);
+        const commandText = text.slice(commandMatch.index + commandMatch[0].length).trim();
+        const parts = commandText.split(/\\s+/);
         const seconds = Number(parts[1]);
         const message = parts.slice(2).join(" ").trim();
         if (!Number.isInteger(seconds) || seconds < 5 || seconds > 86400 || !message || message.length > 100) {
