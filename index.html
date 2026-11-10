@@ -106,7 +106,7 @@
           <button class="btn primary" id="rustplusStartLink" type="button">1. Войти через Facepunch</button>
           <button class="btn secondary" id="rustplusImport" type="button">2. Получить токен из расширения</button>
           <button class="btn secondary" id="rustplusRefresh" type="button">Проверить статус</button>
-          <button class="btn secondary" id="rustplusPairingSync" type="button">3. Найти игровую привязку</button>
+          <button class="btn secondary" id="rustplusPairingSync" type="button">4. Найти игровую привязку</button>
           <a class="btn secondary" href="https://rust.facepunch.com/companion/" target="_blank" rel="noopener noreferrer">Официальный Rust+ ↗</a>
         </div>
         <div class="field" style="margin-top:16px">
@@ -533,7 +533,7 @@
       alert(error.message || 'Ошибка синхронизации Rust+.');
     } finally {
       button.disabled = false;
-      button.textContent = '3. Найти игровую привязку';
+      button.textContent = '4. Найти игровую привязку';
     }
   }
   document.getElementById('rustplusPairingSync').addEventListener('click', syncRustPlusPairing);
@@ -566,6 +566,9 @@
       } else if (data.state === 'pairing_data_missing' || data.state === 'not_configured') {
         stateEl.textContent = 'Нужна привязка Rust+';
         dot.style.background = '#e87532';
+      } else if (data.state === 'auth_error') {
+        stateEl.textContent = 'Ошибка авторизации Rust+';
+        dot.style.background = '#e36b6b';
       } else if (data.state === 'error' || data.state === 'disconnected') {
         stateEl.textContent = 'Нет соединения с Rust+';
         dot.style.background = '#e36b6b';
