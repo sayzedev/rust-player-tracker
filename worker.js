@@ -946,7 +946,7 @@ export class RustPlusCloud {
         }
       } else if (command === "!help") {
         reply = "Rust Bot: !help !p !team !server !map !timer";
-      } else if (command === "!p" || command === "!team" || command === "!who") {
+      } else if (command === "!p" || command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
         else {
