@@ -8,7 +8,7 @@ const FRONTEND_URL = "https://sayzedev.github.io/rust-player-tracker/";
 function b64url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+  return btoa(binary).replaceAll("=", "").replaceAll("+", "-").replaceAll("/", "_");
 }
 function fromB64url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -122,7 +122,7 @@ export default {
       if (!env.STEAM_SESSION_SECRET) return json({ error: "steam_login_not_configured" }, 503, origin);
       const token = url.searchParams.get("token") || "";
       const session = await verifyToken(token, env.STEAM_SESSION_SECRET, "session");
-      if (!session || !/^\\d{17}$/.test(session.steamid || "")) return json({ error: "steam_session_invalid", message: "Сессия входа недействительна или истекла." }, 401, origin);
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) return json({ error: "steam_session_invalid", message: "Сессия входа недействительна или истекла." }, 401, origin);
       return json({ steamid: session.steamid, expires_at: session.exp }, 200, origin, "no-store");
     }
 
