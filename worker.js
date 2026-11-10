@@ -797,20 +797,28 @@ export class RustPlusCloud {
           }
         } catch (e) { this.lastError = String(e?.message || e).slice(0, 200); }
       });
-      ws.addEventListener("error", () => {
+      ws.addEventListener("error", event => {
         if (this.ws !== ws) return;
         if (this.connectionTimer) clearTimeout(this.connectionTimer);
         this.connectionTimer = null;
-        this.lastError = "Facepunch Companion WebSocket connection error";
+        const detail = String(event?.message || "").trim().slice(0, 120);
+        this.lastError = detail
+          ? "Facepunch Companion WebSocket error: " + detail
+          : "Facepunch Companion WebSocket error; waiting for close details";
         this.state = "error";
       });
-      ws.addEventListener("close", () => {
+      ws.addEventListener("close", event => {
         if (this.ws !== ws) return;
         if (this.connectionTimer) clearTimeout(this.connectionTimer);
         this.connectionTimer = null;
         this.ws = null;
         this.connecting = false;
-        if (this.state !== "auth_error") this.state = "disconnected";
+        const code = Number(event?.code || 0);
+        const reason = String(event?.reason || "").replace(/[\\r\\n]/g, " ").slice(0, 120);
+        this.lastError = "Facepunch Companion socket closed: code " + code +
+          (reason ? ", reason: " + reason : "") +
+          (event?.wasClean === false ? " (unclean close)" : "");
+        this.state = "error";
         this.schedule();
       });
       this.connecting = false;
