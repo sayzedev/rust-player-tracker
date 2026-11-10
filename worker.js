@@ -544,11 +544,22 @@ export class RustPlusCloud {
     const path = new URL(request.url).pathname.replace(/^\//, "");
     if (path === "status" || path === "connect") {
       await this.ensureConnected();
+      const configured = Boolean(this.config());
+      const connected = this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1);
       return Response.json({
         service: "rustplus-cloud", state: this.state,
-        configured: Boolean(this.config()), connected: Boolean(this.ws && this.ws.readyState === 1),
+        configured, connected, companion_connected: connected,
+        backend_configured: true,
+        pairing_required: !configured,
         connected_at: this.connectedAt, error: this.lastError,
-        free_tier_note: "Cloudflare Durable Objects Free limits apply; continuous connection is being tested."
+        message: connected
+          ? "Облачный Rust+ Companion подключён."
+          : !configured
+            ? "Добавь данные привязки Rust+ в секреты Cloudflare Worker."
+            : this.state === "connecting"
+              ? "Облачный Companion подключается к серверу Rust+."
+              : this.lastError || "Облачный Companion пока не подключён.",
+        free_tier_note: "Проверяется устойчивость постоянного соединения в пределах бесплатных лимитов Cloudflare."
       });
     }
     await this.ensureConnected();
