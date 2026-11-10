@@ -820,8 +820,10 @@ export class RustPlusCloud {
             this.lastChat = result.messages || [];
             await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
           } else if (result.type === "teamMessage") {
-            const added = await this.appendChatMessage(result.message);
-            if (added) await this.handleTeamChatCommand(result.message);
+            // The chat history endpoint may already have inserted this message.
+            // Command handling must still run for the live WebSocket broadcast.
+            await this.appendChatMessage(result.message);
+            await this.handleTeamChatCommand(result.message);
           }
           const response = rpDecode(new Uint8Array(data));
           const inner = rpOne(response, 1);
@@ -897,11 +899,17 @@ export class RustPlusCloud {
     if (now - previous < 2000) return;
     this.commandTimestamps.set(senderId, now);
 
+    // Avoid replaying the same command after reconnects or duplicate broadcasts.
+    const commandKey = [senderId, String(Number(entry?.time || 0)), text].join(":");
+    const processed = await this.ctx.storage.get("rustplus_processed_commands") || [];
+    if (processed.includes(commandKey)) return;
+    await this.ctx.storage.put("rustplus_processed_commands", [...processed, commandKey].slice(-150));
+
     const command = text.toLowerCase().split(/\s+/)[0];
     let reply = "";
     try {
       if (command === "!help") {
-        reply = "Rust Bot: /help /online /team /server /map";
+        reply = "Rust Bot: !help !online !team !server !map";
       } else if (command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
@@ -925,7 +933,7 @@ export class RustPlusCloud {
         const info = result.info || {};
         reply = ("Карта: " + (info.map || "открой вкладку Rust+ на сайте") + ". Метки и изображение доступны на сайте.").slice(0, 155);
       } else {
-        reply = "Неизвестная команда. Напиши /help.";
+        reply = "Неизвестная команда. Напиши !help.";
       }
       if (reply) {
         await this.sendRequest(13, rpEncodeTextMessage(reply));
