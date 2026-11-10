@@ -21,7 +21,7 @@
     .notice{display:none;margin-top:12px;padding:10px 12px;border-radius:9px;font-size:13px}.notice.error{display:block;background:#3a2022;color:#ffb5b5;border:1px solid #663638}.notice.ok{display:block;background:#193127;color:#a8efc7;border:1px solid #285b43}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}.stat{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:12px}.stat strong{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}
     .list{margin-top:18px}.list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.count{color:var(--muted);font-size:12px}
-    .player{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#11161c;border:1px solid #2b333e;border-radius:12px;padding:13px;margin-top:9px}.player-main{min-width:0;flex:1}.player-name{font-weight:700;overflow-wrap:anywhere}.player-id{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.player-status{font-size:12px;color:var(--green);margin-top:3px}.player-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#2a313c;flex-shrink:0}.player-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}.link{color:#f1a06d;text-decoration:none;font-size:13px}.link:hover{text-decoration:underline}
+    .player{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#11161c;border:1px solid #2b333e;border-radius:12px;padding:13px;margin-top:9px}.player-main{min-width:0;flex:1}.player-name{font-weight:700;overflow-wrap:anywhere}.player-id{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.player-status{font-size:12px;color:var(--green);margin-top:3px}.player-stats{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}.player-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#2a313c;flex-shrink:0}.player-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}.link{color:#f1a06d;text-decoration:none;font-size:13px}.link:hover{text-decoration:underline}
     .empty{padding:24px 12px;text-align:center;color:var(--muted);border:1px dashed #394351;border-radius:12px;font-size:13px}
     .server-status{display:flex;align-items:center;gap:9px;margin:14px 0 8px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:#8b929c;display:inline-block}
     .server-box{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:14px;margin-top:14px}.server-box p{color:var(--muted);font-size:13px;margin:8px 0 0}
@@ -132,6 +132,31 @@
       if (row.isConnected) status.textContent = error.message || 'Не удалось загрузить профиль';
     }
   }
+  async function loadPlayerStats(player, row, statsEl) {
+    const base = (localStorage.getItem(WORKER_KEY) || '').trim().replace(/\/$/, '');
+    if (!base.startsWith('https://') || !base.endsWith('.workers.dev')) return;
+    statsEl.textContent = 'Статистика Rust загружается…';
+    try {
+      const response = await fetch(base + '/api/players/' + player.id + '/stats');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Ошибка ' + response.status);
+      if (!row.isConnected) return;
+      player.stats = data;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+      if (!data.available) {
+        statsEl.textContent = data.message || 'Статистика недоступна';
+      } else if (!data.owned_or_visible) {
+        statsEl.textContent = data.message || 'Данные Rust не найдены';
+      } else {
+        const hours = (Number(data.playtime_minutes || 0) / 60).toFixed(1);
+        const recent = (Number(data.playtime_2weeks_minutes || 0) / 60).toFixed(1);
+        const last = data.last_played ? new Date(data.last_played * 1000).toLocaleDateString('ru-RU') : 'нет данных';
+        statsEl.textContent = 'Rust: ' + hours + ' ч. всего · ' + recent + ' ч. за 2 недели · последний запуск: ' + last;
+      }
+    } catch (error) {
+      if (row.isConnected) statsEl.textContent = error.message || 'Не удалось загрузить статистику';
+    }
+  }
   function render() {
     document.getElementById('totalPlayers').textContent = players.length;
     countEl.textContent = players.length + (players.length === 1 ? ' игрок' : players.length >= 2 && players.length <= 4 ? ' игрока' : ' игроков');
@@ -144,13 +169,15 @@
       const name = document.createElement('div'); name.className = 'player-name'; name.textContent = player.profile?.personaname || 'Steam игрок';
       const id = document.createElement('div'); id.className = 'player-id'; id.textContent = player.id;
       const status = document.createElement('div'); status.className = 'player-status'; status.textContent = player.profile ? playerState(player.profile) : 'Профиль загружается…';
+      const stats = document.createElement('div'); stats.className = 'player-stats'; stats.textContent = 'Статистика Rust загружается…';
       const actions = document.createElement('div'); actions.className = 'player-actions';
       const link = document.createElement('a'); link.className = 'link'; link.href = 'https://steamcommunity.com/profiles/' + player.id; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Steam ↗';
       const refresh = document.createElement('button'); refresh.className = 'btn secondary'; refresh.textContent = '↻'; refresh.title = 'Обновить профиль'; refresh.style.padding = '7px 9px'; refresh.addEventListener('click', () => loadPlayerProfile(player, row, name, avatar, status));
       const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.textContent = 'Удалить'; remove.style.padding = '7px 9px'; remove.style.fontSize = '12px';
       remove.addEventListener('click', () => { players = players.filter(p => p.id !== player.id); save(); });
-      main.append(name, id, status); actions.append(link, refresh, remove); row.append(avatar, main, actions); playersEl.append(row);
+      main.append(name, id, status, stats); actions.append(link, refresh, remove); row.append(avatar, main, actions); playersEl.append(row);
       loadPlayerProfile(player, row, name, avatar, status);
+      loadPlayerStats(player, row, stats);
     });
   }
   document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
