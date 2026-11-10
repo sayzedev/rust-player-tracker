@@ -228,7 +228,7 @@ export default {
     const rustPlusActionMatch = url.pathname.match(/^\/api\/rustplus\/(devices|devices\/add|devices\/remove|devices\/\d+\/toggle|time|events|history|entity\/\d+)$/);
     if (rustPlusActionMatch) {
       const route = rustPlusActionMatch[1];
-      const allowedMethod = route === "devices" || route === "time" || route.startsWith("entity/") ? "GET" : "POST";
+      const allowedMethod = route === "devices" || route === "time" || route === "events" || route === "history" || route.startsWith("entity/") ? "GET" : "POST";
       if (request.method !== allowedMethod) return json({ error: "method_not_allowed" }, 405, origin);
       const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
       const session = env.STEAM_SESSION_SECRET ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session") : null;
