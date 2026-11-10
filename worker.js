@@ -182,11 +182,35 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/rustplus/chat/send") {
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const session = env.STEAM_SESSION_SECRET
+        ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
+        : null;
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) {
+        return json({ error: "rustplus_auth_required", message: "Войди через Steam, чтобы писать в Rust+." }, 401, origin);
+      }
+      if (!env.RUSTPLUS_CLOUD) return json({ error: "rustplus_storage_unavailable" }, 503, origin);
+      const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + session.steamid);
+      const stub = env.RUSTPLUS_CLOUD.get(id);
+      const body = await request.text();
+      const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body
+      });
+      return new Response(await cloudResponse.text(), {
+        status: cloudResponse.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+      });
+    }
+
     if (request.method !== "GET") {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
-    const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info)$/);
+    const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info|chat)$/);
     if (rustPlusMatch) {
       const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
       const rustPlusSession = env.STEAM_SESSION_SECRET
@@ -396,14 +420,27 @@ function rpFieldVarint(field, value) {
 function rpFieldBytes(field, bytes) {
   return [...rpVarint((field << 3) | 2), ...rpVarint(bytes.length), ...bytes];
 }
-function rpRequest(seq, playerId, playerToken, requestField) {
+function rpRequest(seq, playerId, playerToken, requestField, requestPayload = new Uint8Array()) {
   const body = [
     ...rpFieldVarint(1, seq),
     ...rpFieldVarint(2, BigInt(playerId)),
     ...rpFieldVarint(3, BigInt(playerToken)),
-    ...rpFieldBytes(requestField, new Uint8Array())
+    ...rpFieldBytes(requestField, requestPayload)
   ];
   return new Uint8Array(body);
+}
+function rpEncodeTextMessage(message) {
+  return new Uint8Array(rpFieldBytes(1, new TextEncoder().encode(message)));
+}
+function rpDecodeTeamMessage(bytes) {
+  const message = rpDecode(bytes);
+  return {
+    steamid: String(rpOne(message, 1) || ""),
+    name: rpText(rpOne(message, 2)),
+    message: rpText(rpOne(message, 3)),
+    color: rpText(rpOne(message, 4)),
+    time: rpNumber(rpOne(message, 5))
+  };
 }
 function rpDecode(bytes) {
   const fields = {};
@@ -442,7 +479,17 @@ function rpNumber(value) { return value === undefined ? 0 : Number(value); }
 function rpDecodeResponse(buffer) {
   const outer = rpDecode(new Uint8Array(buffer));
   const responseBytes = rpOne(outer, 1);
-  if (!responseBytes) return { type: "broadcast" };
+  if (!responseBytes) {
+    const broadcastBytes = rpOne(outer, 2);
+    if (!broadcastBytes) return { type: "broadcast" };
+    const broadcast = rpDecode(broadcastBytes);
+    if (rpOne(broadcast, 5)) {
+      const teamMessageEvent = rpDecode(rpOne(broadcast, 5));
+      const messageBytes = rpOne(teamMessageEvent, 1);
+      if (messageBytes) return { type: "teamMessage", message: rpDecodeTeamMessage(messageBytes) };
+    }
+    return { type: "broadcast" };
+  }
   const response = rpDecode(responseBytes);
   if (rpOne(response, 5)) {
     const err = rpDecode(rpOne(response, 5));
@@ -469,6 +516,10 @@ function rpDecodeResponse(buffer) {
           online: Boolean(rpOne(m, 5)), alive: Boolean(rpOne(m, 7)) };
       })
     }};
+  }
+  if (rpOne(response, 10)) {
+    const chat = rpDecode(rpOne(response, 10));
+    return { type: "teamChat", messages: (chat[1] || []).map(x => rpDecodeTeamMessage(x.value)) };
   }
   if (rpOne(response, 8)) {
     const map = rpDecode(rpOne(response, 8));
@@ -512,6 +563,8 @@ export class RustPlusCloud {
     this.lastTeam = null;
     this.lastMap = null;
     this.lastMarkers = null;
+    this.lastChat = [];
+    this.lastChatSendAt = 0;
     this.connecting = false;
   }
 
@@ -662,6 +715,12 @@ export class RustPlusCloud {
           else if (result.type === "team") this.lastTeam = result.team;
           else if (result.type === "map") this.lastMap = result.map;
           else if (result.type === "markers") this.lastMarkers = result.markers;
+          else if (result.type === "teamChat") {
+            this.lastChat = result.messages || [];
+            await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
+          } else if (result.type === "teamMessage") {
+            await this.appendChatMessage(result.message);
+          }
           const response = rpDecode(new Uint8Array(data));
           const inner = rpOne(response, 1);
           if (inner) {
@@ -691,11 +750,28 @@ export class RustPlusCloud {
     }
   }
 
-  async sendRequest(field) {
+  async appendChatMessage(message) {
+    const entry = {
+      steamid: String(message?.steamid || ""),
+      name: String(message?.name || "Игрок"),
+      message: String(message?.message || "").slice(0, 500),
+      color: String(message?.color || ""),
+      time: Number(message?.time || Math.floor(Date.now() / 1000))
+    };
+    if (!entry.message) return;
+    const duplicate = this.lastChat.some(item =>
+      item.steamid === entry.steamid && item.time === entry.time && item.message === entry.message
+    );
+    if (duplicate) return;
+    this.lastChat = [...this.lastChat, entry].slice(-100);
+    await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
+  }
+
+  async sendRequest(field, payload = new Uint8Array()) {
     const cfg = await this.config();
     if (!cfg || !this.ws || this.ws.readyState !== 1) throw new Error("Rust+ Companion is not connected");
     const seq = ++this.seq;
-    const packet = rpRequest(seq, cfg.playerId, cfg.playerToken, field);
+    const packet = rpRequest(seq, cfg.playerId, cfg.playerToken, field, payload);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(String(seq)); reject(new Error("Rust+ request timeout")); }, 12000);
       this.pending.set(String(seq), result => { clearTimeout(timer); resolve(result); });
@@ -809,11 +885,39 @@ export class RustPlusCloud {
       }, { status: 503 });
     }
 
-    const field = ({ info: 8, team: 11, map: 10, markers: 18 })[path];
+    if (path === "chat/send") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+      const message = String(payload?.message || "").trim();
+      if (!message || message.length > 160 || /[\r\n]/.test(message)) {
+        return Response.json({ error: "invalid_chat_message", message: "Сообщение должно содержать от 1 до 160 символов в одну строку." }, { status: 400 });
+      }
+      if (Date.now() - this.lastChatSendAt < 1200) {
+        return Response.json({ error: "chat_rate_limited", message: "Подожди немного перед следующим сообщением." }, { status: 429 });
+      }
+      this.lastChatSendAt = Date.now();
+      try {
+        const result = await this.sendRequest(13, rpEncodeTextMessage(message));
+        if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
+        await this.sendRequest(12).catch(() => null);
+        return Response.json({ sent: true, message: "Сообщение отправлено в командный чат Rust+." });
+      } catch (e) {
+        return Response.json({ error: "rustplus_chat_send_failed", message: String(e?.message || e) }, { status: 502 });
+      }
+    }
+
+    const field = ({ info: 8, team: 11, map: 10, markers: 18, chat: 12 })[path];
     if (!field) return Response.json({ error: "not_found" }, { status: 404 });
     try {
       const result = await this.sendRequest(field);
       if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
+      if (path === "chat") {
+        this.lastChat = result.type === "teamChat" ? result.messages || [] :
+          (await this.ctx.storage.get("rustplus_team_chat") || this.lastChat || []);
+        await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
+        return Response.json({ messages: this.lastChat });
+      }
       const data = ({ info: this.lastInfo, team: this.lastTeam, map: this.lastMap, markers: this.lastMarkers })[path];
       return Response.json(data || result);
     } catch (e) {
