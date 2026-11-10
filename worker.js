@@ -182,6 +182,25 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/rustplus/pairing/clear") {
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const session = env.STEAM_SESSION_SECRET
+        ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session")
+        : null;
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) {
+        return json({ error: "steam_auth_required", message: "Сначала войди на сайт через Steam." }, 401, origin);
+      }
+      if (!env.RUSTPLUS_CLOUD) return json({ error: "rustplus_storage_unavailable" }, 503, origin);
+      const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + session.steamid);
+      const stub = env.RUSTPLUS_CLOUD.get(id);
+      const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/clear-pairing", { method: "POST" });
+      return new Response(await cloudResponse.text(), {
+        status: cloudResponse.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+      });
+    }
+
     if (url.pathname === "/api/rustplus/chat/send") {
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, origin);
       const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
@@ -1016,6 +1035,34 @@ export class RustPlusCloud {
         state: this.state,
         companion_connected: this.state === "connected" && Boolean(this.ws && this.ws.readyState === 1)
       }, { status: result.error ? 502 : 200 });
+    }
+
+    if (path === "clear-pairing") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      const oldSocket = this.ws;
+      this.ws = null;
+      this.connecting = false;
+      this.pending.clear();
+      this.lastError = null;
+      this.connectedAt = null;
+      this.lastInfo = null;
+      this.lastTeam = null;
+      this.lastMap = null;
+      this.lastMarkers = null;
+      this.lastChat = [];
+      this.state = (await this.ctx.storage.get("rustplus_auth_token")) ? "pairing_data_missing" : "not_configured";
+      await this.ctx.storage.delete("rustplus_pairing");
+      await this.ctx.storage.delete("rustplus_connect_error");
+      await this.ctx.storage.delete("rustplus_connect_started_at");
+      await this.ctx.storage.delete("rustplus_team_chat");
+      try { if (oldSocket && oldSocket.readyState < 2) oldSocket.close(1000, "Rust+ pairing cleared by user"); } catch {}
+      this.schedule();
+      return Response.json({
+        cleared: true,
+        auth_token_preserved: Boolean(await this.ctx.storage.get("rustplus_auth_token")),
+        pairing_saved: false,
+        message: "Сохранённая привязка Rust+ и данные подключения очищены. Авторизация Facepunch сохранена."
+      });
     }
 
     if (path === "status" || path === "connect") {
