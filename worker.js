@@ -36,17 +36,15 @@ export default {
 
     if (url.pathname === "/api/rustplus/status") {
       const authConfigured = Boolean(env.RUSTPLUS_AUTH_TOKEN);
-      const serverConfigured = Boolean(env.RUSTPLUS_SERVER_ID);
       return json({
         service: "rustplus",
-        ready_for_companion_socket: authConfigured && serverConfigured,
-        credentials: {
-          auth_token_configured: authConfigured,
-          server_id_configured: serverConfigured
-        },
-        message: authConfigured && serverConfigured
-          ? "Данные для Companion-соединения заданы. Постоянное подключение и получение pairing ещё не настроены."
-          : "Не хватает серверных секретов RUSTPLUS_AUTH_TOKEN и/или RUSTPLUS_SERVER_ID. Не добавляй их в GitHub или браузер."
+        auth_token_configured: authConfigured,
+        server_id_required_now: false,
+        companion_connected: false,
+        pairing_required: true,
+        message: authConfigured
+          ? "Токен Rust+ сохранён. Server ID не требуется для этой проверки. Постоянное Companion-подключение и pairing ещё не реализованы."
+          : "Добавь RUSTPLUS_AUTH_TOKEN в Cloudflare Secrets. Не помещай токен в GitHub или браузер."
       }, 200, origin, "no-store");
     }
 
