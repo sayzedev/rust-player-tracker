@@ -548,9 +548,7 @@
   }
   async function loadRustPlusData() {
     const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
-    const targets = [
-      ['info','rustplusInfo'],['team','rustplusTeam'],['markers','rustplusMarkers'],['map','rustplusMap']
-    ];
+    const targets = [['info','rustplusInfo'],['team','rustplusTeam'],['markers','rustplusMarkers'],['map','rustplusMap']];
     const button = document.getElementById('rustplusLoadData');
     button.disabled = true;
     button.textContent = 'Загружаем…';
@@ -565,13 +563,43 @@
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || data.error || 'HTTP ' + response.status);
-        if (route === 'map' && data.image_data_url) {
+        if (route === 'info') {
+          el.textContent = [
+            data.name || 'Сервер Rust+',
+            'Игроки: ' + (data.players ?? '—') + ' / ' + (data.max_players ?? '—'),
+            'В очереди: ' + (data.queued_players ?? '—'),
+            data.url ? 'Сайт: ' + data.url : '',
+            data.map ? 'Карта: ' + data.map : '',
+            data.wipe_time ? 'Вайп: ' + new Date(Number(data.wipe_time) * 1000).toLocaleString() : ''
+          ].filter(Boolean).join('\n');
+        } else if (route === 'team') {
+          const members = Array.isArray(data.members) ? data.members : [];
+          el.textContent = members.length
+            ? members.map((member, index) => [
+                (index + 1) + '. ' + (member.name || member.steamid || 'Игрок'),
+                '   Статус: ' + (member.online ? 'В сети' : 'Не в сети') + (member.alive === false ? ' · погиб' : ''),
+                '   Координаты карты: ' + Number(member.x || 0).toFixed(3) + ', ' + Number(member.y || 0).toFixed(3),
+                member.steamid ? '   SteamID: ' + member.steamid : ''
+              ].filter(Boolean).join('\n')).join('\n\n')
+            : 'Команда пока не получена.';
+        } else if (route === 'markers') {
+          const markers = Array.isArray(data.markers) ? data.markers : [];
+          el.textContent = markers.length
+            ? markers.map((marker, index) => (index + 1) + '. ' + (marker.name || ('Метка ' + marker.id)) +
+                '\n   Тип: ' + marker.type + ' · X: ' + Number(marker.x || 0).toFixed(3) +
+                ' · Y: ' + Number(marker.y || 0).toFixed(3) +
+                (marker.steamid ? '\n   SteamID: ' + marker.steamid : '')).join('\n\n')
+            : 'Метки не найдены.';
+        } else if (route === 'map') {
           const mapImage = document.getElementById('rustplusMapImage');
-          mapImage.src = data.image_data_url;
-          mapImage.hidden = false;
-          el.textContent = 'Размер: ' + (data.width || '?') + ' × ' + (data.height || '?') + '\nМонументов: ' + (Array.isArray(data.monuments) ? data.monuments.length : 0);
-        } else {
-          el.textContent = JSON.stringify(data, null, 2);
+          if (data.image_data_url) {
+            mapImage.src = data.image_data_url;
+            mapImage.hidden = false;
+          } else {
+            mapImage.hidden = true;
+          }
+          el.textContent = 'Размер: ' + (data.width || '?') + ' × ' + (data.height || '?') +
+            '\nМонументов: ' + (Array.isArray(data.monuments) ? data.monuments.length : 0);
         }
       } catch (error) {
         if (route === 'map') document.getElementById('rustplusMapImage').hidden = true;
