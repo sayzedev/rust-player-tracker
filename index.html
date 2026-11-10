@@ -43,7 +43,7 @@
     </section>
     <nav class="tab-nav" aria-label="Главное меню"><button class="tab-btn active" data-tab="players">Игроки</button><button class="tab-btn" data-tab="servers">Серверы</button><button class="tab-btn" data-tab="map">Карта</button></nav>
     <section class="grid tab-panel active" id="mainGrid">
-      <div class="card">
+      <div class="card" id="playersCard">
         <h3>Добавить игрока</h3>
         <p class="hint">Вставь SteamID64 или ссылку на профиль Steam.</p>
         <div class="field"><label for="steamInput">Steam ID / ссылка</label><input id="steamInput" placeholder="Например, 76561199440875097" autocomplete="off" inputmode="text"></div>
@@ -55,12 +55,12 @@
         </div>
       </div>
       <aside>
-        <div class="card">
+        <div class="card" id="overviewCard">
           <h3>Обзор</h3><p class="hint">Текущий список отслеживания</p>
           <div class="stats"><div class="stat"><strong id="totalPlayers">0</strong><span>Добавлено игроков</span></div><div class="stat"><strong>—</strong><span>Сейчас онлайн</span></div></div>
         </div>
-        <div class="card" style="margin-top:18px">
-          <h3>Мониторинг сервера Rust</h3>
+        <div class="card" id="serverCard" style="margin-top:18px">
+          <h3>Каталог серверов Rust</h3>
           <p class="hint">Подготовка подключения сервера</p>
           <div class="field"><label for="workerUrl">Адрес API Worker</label><input id="workerUrl" placeholder="https://имя-worker.workers.dev"></div>
           <div class="field"><label for="serverSearch">Название Rust-сервера (необязательно)</label><input id="serverSearch" placeholder="Оставь пустым, чтобы показать все серверы Rust"></div>
