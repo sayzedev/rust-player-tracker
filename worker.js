@@ -92,7 +92,9 @@ export default {
         return json({ error: "steam_openid_invalid", message: "Steam вернул некорректный ответ авторизации." }, 400, origin);
       }
       const claimed = url.searchParams.get("openid.claimed_id") || "";
-      const match = claimed.match(/^https?:\\/\\/steamcommunity\\.com\\/openid\\/id\\/(\\d{17})$/i);
+      let claimedUrl;
+      try { claimedUrl = new URL(claimed); } catch { return json({ error: "steam_id_invalid" }, 400, origin); }
+      const match = claimedUrl.hostname === "steamcommunity.com" && claimedUrl.pathname.match(/^\/openid\/id\/([0-9]{17})$/);
       if (!match) return json({ error: "steam_id_invalid" }, 400, origin);
       try {
         const verification = new URLSearchParams();
