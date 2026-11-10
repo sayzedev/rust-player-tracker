@@ -124,9 +124,9 @@
   document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(input.value); });
   document.getElementById('demoBtn').addEventListener('click', () => { input.value = '76561199440875097'; addPlayer(input.value); });
-  workerInput.addEventListener('change', () => localStorage.setItem(WORKER_KEY, workerInput.value.trim().replace(/\\/$/, '')));
+  workerInput.addEventListener('change', () => localStorage.setItem(WORKER_KEY, workerInput.value.trim().replace(/\/$/, '')));
   document.getElementById('searchServers').addEventListener('click', async () => {
-    const base = workerInput.value.trim().replace(/\\/$/, '');
+    const base = workerInput.value.trim().replace(/\/$/, '');
     const query = document.getElementById('serverSearch').value.trim();
     const results = document.getElementById('serverResults');
     if (!base.startsWith('https://') || !base.endsWith('.workers.dev')) {
