@@ -884,12 +884,12 @@
   function drawLiveMapMembers(members) {
     mapLiveLayer.replaceChildren();
     const valid = (Array.isArray(members) ? members : []).filter(member =>
-      /^\\d{17}$/.test(String(member.steamid || '')) &&
+      /^\d{17}$/.test(String(member.steamid || '')) &&
       Number.isFinite(Number(member.x)) && Number.isFinite(Number(member.y))
     );
     valid.forEach(member => {
-      const x = Math.max(0, Math.min(100, (Number(member.x) / liveMapSize + .5) * 100));
-      const y = Math.max(0, Math.min(100, (.5 - Number(member.y) / liveMapSize) * 100));
+      const x = Math.max(0, Math.min(100, (Number(member.x) / liveMapSize) * 100));
+      const y = Math.max(0, Math.min(100, (1 - Number(member.y) / liveMapSize) * 100));
       const pin = document.createElement('button');
       pin.type = 'button';
       const dead = member.alive === false;
@@ -913,7 +913,7 @@
     if (!sessionToken) { setLiveMapState('Сначала войди на сайт через Steam'); return; }
     liveMapBusy = true;
     try {
-      const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\\/$/, '');
+      const base = (localStorage.getItem(WORKER_KEY) || DEFAULT_WORKER).trim().replace(/\/$/, '');
       const headers = { 'Authorization': 'Bearer ' + sessionToken };
       const fetchJson = async route => {
         const response = await fetch(base + '/api/rustplus/' + route, { headers, cache: 'no-store' });
@@ -925,8 +925,8 @@
         const mapData = await fetchJson('map');
         if (mapData && mapData.image_data_url) {
           mapImage.src = mapData.image_data_url;
-          liveMapImageLoaded = true;
         }
+        liveMapImageLoaded = true;
       }
       const [info, team] = await Promise.all([fetchJson('info'), fetchJson('team')]);
       if (Number(info.map_size) > 0) liveMapSize = Number(info.map_size);
