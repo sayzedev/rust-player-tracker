@@ -34,6 +34,22 @@ export default {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
+    if (url.pathname === "/api/rustplus/status") {
+      const authConfigured = Boolean(env.RUSTPLUS_AUTH_TOKEN);
+      const serverConfigured = Boolean(env.RUSTPLUS_SERVER_ID);
+      return json({
+        service: "rustplus",
+        ready_for_companion_socket: authConfigured && serverConfigured,
+        credentials: {
+          auth_token_configured: authConfigured,
+          server_id_configured: serverConfigured
+        },
+        message: authConfigured && serverConfigured
+          ? "Данные для Companion-соединения заданы. Постоянное подключение и получение pairing ещё не настроены."
+          : "Не хватает серверных секретов RUSTPLUS_AUTH_TOKEN и/или RUSTPLUS_SERVER_ID. Не добавляй их в GitHub или браузер."
+      }, 200, origin, "no-store");
+    }
+
     const statsMatch = url.pathname.match(/^\/api\/players\/(\d{17})\/stats$/);
     if (statsMatch) {
       if (!env.STEAM_API_KEY) {
