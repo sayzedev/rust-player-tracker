@@ -27,6 +27,20 @@ Worker предоставляет:
 
 Ответы кэшируются на 15 секунд. API-ключ не передаётся в браузер.
 
+## Rust+ Companion
+
+Rust+ подключается через Cloudflare Durable Objects — отдельный домашний компьютер или Discord не нужны.
+
+1. Войди на сайте через Steam.
+2. Вкладка **Rust+ Companion** → войди на официальной странице Facepunch.
+3. Установи расширение из папки `extension`, импортируй токен и сохрани его.
+4. В игре открой меню Rust+ и нажми **Pair with Server**.
+5. Вернись на сайт и нажми **Найти игровую привязку**. Worker читает историю Facepunch, сохраняет найденную привязку в личном Durable Object и соединяется с `wss://companion-rust.facepunch.com/socket/{serverId}`.
+
+Для автоматической публикации Worker используются GitHub Actions secrets `CLOUDFLARE_API_TOKEN` и `CLOUDFLARE_ACCOUNT_ID`. Для Steam-сессий используется Cloudflare Worker secret `STEAM_SESSION_SECRET`. Не добавляй токены или другие секреты в GitHub.
+
+Текущие Rust+ запросы: информация о сервере, команда, карта и метки. Живое соединение ещё нужно проверить на реальном сервере после игровой привязки. Cloudflare Free имеет лимиты, поэтому постоянную работу 24/7 не гарантируем. Подробности — в [CLOUDFLARE_RUSTPLUS_TEST.md](CLOUDFLARE_RUSTPLUS_TEST.md).
+
 ## Важно
 
 - Если ранее опубликованный ключ API был отправлен в чат или попал в публичный репозиторий, отзови его и выпусти новый.
