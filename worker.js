@@ -668,8 +668,26 @@ export class RustPlusCloud {
     }
 
     const { sortTime, ...safePairing } = pairing;
+    const previousPairing = await this.ctx.storage.get("rustplus_pairing");
+    const pairingChanged = !previousPairing ||
+      String(previousPairing.serverId || "") !== safePairing.serverId ||
+      String(previousPairing.playerId || "") !== safePairing.playerId ||
+      String(previousPairing.playerToken ?? "") !== safePairing.playerToken;
     await this.ctx.storage.put("rustplus_pairing", safePairing);
-    this.lastError = null;
+    if (pairingChanged) {
+      const oldSocket = this.ws;
+      this.ws = null;
+      this.connecting = false;
+      this.pending.clear();
+      this.lastError = null;
+      this.connectedAt = null;
+      this.state = "pairing_data_missing";
+      if (oldSocket && oldSocket.readyState < 2) {
+        try { oldSocket.close(1000, "Rust+ pairing refreshed"); } catch {}
+      }
+    } else if (this.state === "pairing_error") {
+      this.lastError = "Pairing token did not change; repeat Pair with Server in game before syncing.";
+    }
     return {
       found: true,
       server: { id: safePairing.serverId, name: safePairing.name, ip: safePairing.ip, port: safePairing.port },
@@ -686,7 +704,7 @@ export class RustPlusCloud {
       this.schedule();
       return;
     }
-    if (this.state === "auth_error") return;
+    if (this.state === "auth_error" || this.state === "pairing_error") return;
     if (this.ws && this.ws.readyState <= 1) return;
     if (this.connecting) return;
     this.connecting = true;
@@ -713,7 +731,7 @@ export class RustPlusCloud {
           const result = rpDecodeResponse(data);
           if (result.type === "error") {
             this.lastError = result.error;
-            this.state = "auth_error";
+            this.state = String(result.error).toLowerCase() === "not_found" ? "pairing_error" : "auth_error";
           } else if (result.type === "info") this.lastInfo = result.info;
           else if (result.type === "team") this.lastTeam = result.team;
           else if (result.type === "map") this.lastMap = result.map;
