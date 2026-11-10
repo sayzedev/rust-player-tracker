@@ -164,9 +164,14 @@ export default {
             backend_configured: true,
             state: data.state || "unknown",
             connected_at: data.connected_at || null,
+            error: data.error || null,
             message: data.state === "connected"
               ? "Companion подключён к серверу Rust."
-              : "Companion-сервис доступен, состояние: " + (data.state || "неизвестно") + "."
+              : data.state === "pairing_data_missing" || data.state === "not_configured"
+                ? "Companion запущен, но данные привязки Rust+ ещё не настроены."
+                : data.state === "connecting"
+                  ? "Companion запущен и подключается к серверу Rust+."
+                  : "Companion доступен, состояние: " + (data.state || "неизвестно") + "."
           }, 200, origin, "no-store");
         }
         return new Response(body, {
