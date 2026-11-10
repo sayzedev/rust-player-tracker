@@ -510,7 +510,7 @@
       if (!response.ok) throw new Error(result.message || result.error || 'Не удалось сохранить токен.');
       tokenInput.value = '';
       rustPlusPendingSteamId = '';
-      document.getElementById('rustplusTokenHint').textContent = result.message || 'Токен сохранён. Для живых данных может потребоваться дополнительная привязка сервера.';
+      document.getElementById('rustplusTokenHint').textContent = (result.message || 'Токен сохранён.') + ' Старое соединение закрыто; Worker попробует подключиться с новым токеном.';
       await refreshRustPlusStatus();
       alert(result.message || 'Rust+ токен сохранён.');
     } catch (error) {
@@ -590,7 +590,7 @@
         stateEl.textContent = 'Нужна привязка Rust+';
         dot.style.background = '#e87532';
       } else if (data.state === 'auth_error') {
-        stateEl.textContent = 'Ошибка авторизации Rust+';
+        stateEl.textContent = 'Facepunch отклонил авторизацию';
         dot.style.background = '#e36b6b';
       } else if (data.state === 'error' || data.state === 'disconnected') {
         stateEl.textContent = 'Нет соединения с Rust+';
@@ -600,7 +600,10 @@
         dot.style.background = '#e87532';
       }
       const serverLabel = data.server_name ? 'Сервер: ' + data.server_name + '. ' : '';
-      messageEl.textContent = serverLabel + (data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно')));
+      const authHelp = data.state === 'auth_error'
+        ? 'Facepunch отверг Rust+ auth token или player token. Повтори вход через Facepunch, импортируй свежий токен расширением и сохрани его. После сохранения Worker переподключится автоматически. ' 
+        : '';
+      messageEl.textContent = serverLabel + authHelp + (data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно')));
       if (data.pairing_saved) document.getElementById('rustplusPairingHint').textContent = 'Сохранена привязка: ' + (data.server_name || 'Rust сервер') + '.';
       if (data.companion_connected) { loadRustPlusData(); loadRustPlusChat(true); }
     } catch (error) {
