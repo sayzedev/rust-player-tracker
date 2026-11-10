@@ -686,6 +686,7 @@ export class RustPlusCloud {
       this.schedule();
       return;
     }
+    if (this.state === "auth_error") return;
     if (this.ws && this.ws.readyState <= 1) return;
     if (this.connecting) return;
     this.connecting = true;
@@ -706,6 +707,7 @@ export class RustPlusCloud {
         this.schedule();
       });
       ws.addEventListener("message", async event => {
+        if (this.ws !== ws) return;
         try {
           const data = event.data instanceof ArrayBuffer ? event.data : await event.data.arrayBuffer();
           const result = rpDecodeResponse(data);
@@ -734,10 +736,12 @@ export class RustPlusCloud {
         } catch (e) { this.lastError = String(e?.message || e).slice(0, 200); }
       });
       ws.addEventListener("error", () => {
+        if (this.ws !== ws) return;
         this.lastError = "Facepunch Companion WebSocket connection error";
         this.state = "error";
       });
       ws.addEventListener("close", () => {
+        if (this.ws !== ws) return;
         this.ws = null;
         this.connecting = false;
         if (this.state !== "auth_error") this.state = "disconnected";
@@ -868,10 +872,24 @@ export class RustPlusCloud {
         return Response.json({ error: "invalid_credentials" }, { status: 400 });
       }
       const previousSteamId = String(await this.ctx.storage.get("rustplus_steam_id") || "");
+      const previousAuthToken = String(await this.ctx.storage.get("rustplus_auth_token") || "");
       if (previousSteamId && previousSteamId !== steamId) await this.ctx.storage.delete("rustplus_pairing");
+      if (previousAuthToken !== authToken || this.state === "auth_error") {
+        const oldSocket = this.ws;
+        this.ws = null;
+        this.connecting = false;
+        this.pending.clear();
+        this.lastError = null;
+        this.connectedAt = null;
+        this.state = "pairing_data_missing";
+        if (oldSocket && oldSocket.readyState < 2) {
+          try { oldSocket.close(1000, "Rust+ credentials refreshed"); } catch {}
+        }
+      }
       await this.ctx.storage.put("rustplus_auth_token", authToken);
       await this.ctx.storage.put("rustplus_steam_id", steamId);
-      this.state = "pairing_data_missing";
+      if (this.state !== "connected") this.state = "pairing_data_missing";
+      this.schedule();
       return Response.json({
         service: "rustplus-cloud",
         auth_token_saved: true,
