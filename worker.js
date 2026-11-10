@@ -225,11 +225,36 @@ export default {
       });
     }
 
+    const rustPlusActionMatch = url.pathname.match(/^\/api\/rustplus\/(devices|devices\/add|devices\/remove|devices\/\d+\/toggle|time|entity\/\d+)$/);
+    if (rustPlusActionMatch) {
+      const route = rustPlusActionMatch[1];
+      const allowedMethod = route === "devices" || route === "time" || route.startsWith("entity/") ? "GET" : "POST";
+      if (request.method !== allowedMethod) return json({ error: "method_not_allowed" }, 405, origin);
+      const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+      const session = env.STEAM_SESSION_SECRET ? await verifyToken(sessionToken, env.STEAM_SESSION_SECRET, "session") : null;
+      if (!session || !/^[0-9]{17}$/.test(session.steamid || "")) {
+        return json({ error: "rustplus_auth_required", message: "Войди через Steam, чтобы использовать устройства Rust+." }, 401, origin);
+      }
+      if (!env.RUSTPLUS_CLOUD) return json({ error: "rustplus_storage_unavailable" }, 503, origin);
+      const id = env.RUSTPLUS_CLOUD.idFromName("rustplus-user:" + session.steamid);
+      const stub = env.RUSTPLUS_CLOUD.get(id);
+      const body = allowedMethod === "POST" ? await request.text() : undefined;
+      const cloudResponse = await stub.fetch("https://rustplus-cloud.internal/" + route, {
+        method: allowedMethod,
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body
+      });
+      return new Response(await cloudResponse.text(), {
+        status: cloudResponse.status,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+      });
+    }
+
     if (request.method !== "GET") {
       return json({ error: "method_not_allowed" }, 405, origin);
     }
 
-    const rustPlusMatch = url.pathname.match(/^\/api\/rustplus\/(status|map|markers|team|info|chat)$/);
+    const rustPlusMatch = url.pathname.match(/^\\/api\\/rustplus\\/(status|map|markers|team|info|chat)$/);
     if (rustPlusMatch) {
       const sessionToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
       const rustPlusSession = env.STEAM_SESSION_SECRET
