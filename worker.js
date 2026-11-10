@@ -439,14 +439,31 @@ function rpFieldVarint(field, value) {
 function rpFieldBytes(field, bytes) {
   return [...rpVarint((field << 3) | 2), ...rpVarint(bytes.length), ...bytes];
 }
-function rpRequest(seq, playerId, playerToken, requestField, requestPayload = new Uint8Array()) {
+function rpRequest(seq, playerId, playerToken, requestField, requestPayload = new Uint8Array(), entityId = 0) {
   const body = [
     ...rpFieldVarint(1, seq),
     ...rpFieldVarint(2, BigInt(playerId)),
-    ...rpFieldVarint(3, BigInt(playerToken)),
-    ...rpFieldBytes(requestField, requestPayload)
+    ...rpFieldVarint(3, BigInt(playerToken))
   ];
+  if (entityId) body.push(...rpFieldVarint(4, entityId));
+  body.push(...rpFieldBytes(requestField, requestPayload));
   return new Uint8Array(body);
+}
+function rpEncodeFlag(value) {
+  return new Uint8Array(rpFieldVarint(1, value ? 1 : 0));
+}
+function rpDecodeEntityPayload(bytes) {
+  const payload = rpDecode(bytes);
+  return {
+    value: rpOne(payload, 1) === undefined ? null : Boolean(rpOne(payload, 1)),
+    items: (payload[2] || []).map(x => {
+      const item = rpDecode(x.value);
+      return { item_id: Number(rpOne(item, 1) || 0), quantity: Number(rpOne(item, 2) || 0), blueprint: Boolean(rpOne(item, 3)) };
+    }),
+    capacity: rpOne(payload, 3) === undefined ? null : Number(rpOne(payload, 3)),
+    has_protection: Boolean(rpOne(payload, 4)),
+    protection_expiry: Number(rpOne(payload, 5) || 0)
+  };
 }
 function rpEncodeTextMessage(message) {
   return new Uint8Array(rpFieldBytes(1, new TextEncoder().encode(message)));
@@ -525,6 +542,11 @@ function rpDecodeResponse(buffer) {
       const messageBytes = rpOne(teamMessageEvent, 1);
       if (messageBytes) return { type: "teamMessage", message: rpDecodeTeamMessage(messageBytes) };
     }
+    if (rpOne(broadcast, 6)) {
+      const changed = rpDecode(rpOne(broadcast, 6));
+      const payloadBytes = rpOne(changed, 2);
+      return { type: "entityChanged", entity_id: Number(rpOne(changed, 1) || 0), payload: payloadBytes ? rpDecodeEntityPayload(payloadBytes) : null };
+    }
     return { type: "broadcast" };
   }
   const response = rpDecode(responseBytes);
@@ -540,6 +562,24 @@ function rpDecodeResponse(buffer) {
       map_size: rpNumber(rpOne(info, 5)), wipe_time: rpNumber(rpOne(info, 6)),
       players: rpNumber(rpOne(info, 7)), max_players: rpNumber(rpOne(info, 8)),
       queued_players: rpNumber(rpOne(info, 9))
+    }};
+  }
+  if (rpOne(response, 7)) {
+    const time = rpDecode(rpOne(response, 7));
+    return { type: "time", time: {
+      day_length_minutes: rpFloat(rpOne(time, 1)),
+      time_scale: rpFloat(rpOne(time, 2)),
+      sunrise: rpFloat(rpOne(time, 3)),
+      sunset: rpFloat(rpOne(time, 4)),
+      current_time: rpFloat(rpOne(time, 5))
+    }};
+  }
+  if (rpOne(response, 11)) {
+    const entity = rpDecode(rpOne(response, 11));
+    const payloadBytes = rpOne(entity, 3);
+    return { type: "entity", entity: {
+      type: Number(rpOne(entity, 1) || 0),
+      payload: payloadBytes ? rpDecodeEntityPayload(payloadBytes) : null
     }};
   }
   if (rpOne(response, 9)) {
@@ -601,6 +641,9 @@ export class RustPlusCloud {
     this.lastTeam = null;
     this.lastMap = null;
     this.lastMarkers = null;
+    this.lastTime = null;
+    this.lastDevices = [];
+    this.lastEntityEvents = [];
     this.lastChat = [];
     this.lastChatSendAt = 0;
     this.commandTimestamps = new Map();
@@ -836,6 +879,16 @@ export class RustPlusCloud {
           else if (result.type === "team") this.lastTeam = result.team;
           else if (result.type === "map") this.lastMap = result.map;
           else if (result.type === "markers") this.lastMarkers = result.markers;
+          else if (result.type === "time") this.lastTime = result.time;
+          else if (result.type === "entityChanged") {
+            const id = Number(result.entity_id || 0);
+            const devices = await this.ctx.storage.get("rustplus_devices") || [];
+            const updated = devices.map(device => Number(device.id) === id ? { ...device, payload: result.payload, updated_at: Date.now() } : device);
+            await this.ctx.storage.put("rustplus_devices", updated);
+            this.lastDevices = updated;
+            this.lastEntityEvents = [...this.lastEntityEvents, { entity_id: id, payload: result.payload, at: Date.now() }].slice(-50);
+            await this.ctx.storage.put("rustplus_entity_events", this.lastEntityEvents);
+          }
           else if (result.type === "teamChat") {
             this.lastChat = result.messages || [];
             await this.ctx.storage.put("rustplus_team_chat", this.lastChat);
@@ -979,11 +1032,11 @@ export class RustPlusCloud {
     }
   }
 
-  async sendRequest(field, payload = new Uint8Array()) {
+  async sendRequest(field, payload = new Uint8Array(), entityId = 0) {
     const cfg = await this.config();
     if (!cfg || !this.ws || this.ws.readyState !== 1) throw new Error("Rust+ Companion is not connected");
     const seq = ++this.seq;
-    const packet = rpRequest(seq, cfg.playerId, cfg.playerToken, field, payload);
+    const packet = rpRequest(seq, cfg.playerId, cfg.playerToken, field, payload, entityId);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(String(seq)); reject(new Error("Rust+ request timeout")); }, 12000);
       this.pending.set(String(seq), result => { clearTimeout(timer); resolve(result); });
@@ -1232,6 +1285,56 @@ export class RustPlusCloud {
       }, { status: 503 });
     }
 
+    if (path === "devices/add") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      let payload; try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+      const id = Number(payload?.id);
+      const type = String(payload?.type || "unknown");
+      const name = String(payload?.name || "Устройство").trim().slice(0, 40);
+      if (!Number.isSafeInteger(id) || id <= 0 || id > 4294967295 || !["switch","alarm","storage","unknown"].includes(type)) {
+        return Response.json({ error: "invalid_device", message: "Укажи корректный Entity ID и тип устройства." }, { status: 400 });
+      }
+      const devices = await this.ctx.storage.get("rustplus_devices") || [];
+      if (!devices.some(device => Number(device.id) === id)) devices.push({ id, type, name, added_at: Date.now(), payload: null });
+      await this.ctx.storage.put("rustplus_devices", devices.slice(-100));
+      this.lastDevices = devices.slice(-100);
+      try {
+        const result = await this.sendRequest(14, new Uint8Array(), id);
+        if (result.type === "entity") {
+          const updated = this.lastDevices.map(device => Number(device.id) === id ? { ...device, type: result.entity.type === 1 ? "switch" : result.entity.type === 2 ? "alarm" : result.entity.type === 3 ? "storage" : device.type, payload: result.entity.payload, updated_at: Date.now() } : device);
+          await this.ctx.storage.put("rustplus_devices", updated); this.lastDevices = updated;
+        }
+      } catch (e) { return Response.json({ error: "entity_read_failed", message: String(e?.message || e), devices: this.lastDevices }, { status: 502 }); }
+      return Response.json({ added: true, devices: this.lastDevices });
+    }
+
+    if (path.startsWith("devices/") && path.endsWith("/toggle")) {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      const id = Number(path.split("/")[1]);
+      let payload; try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+      if (!Number.isSafeInteger(id) || id <= 0 || id > 4294967295 || typeof payload?.value !== "boolean") return Response.json({ error: "invalid_device_value" }, { status: 400 });
+      const devices = await this.ctx.storage.get("rustplus_devices") || [];
+      const device = devices.find(item => Number(item.id) === id);
+      if (!device || device.type !== "switch") return Response.json({ error: "switch_not_found", message: "Устройство не найдено или это не Smart Switch." }, { status: 404 });
+      const result = await this.sendRequest(15, rpEncodeFlag(payload.value), id);
+      if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
+      const readback = await this.sendRequest(14, new Uint8Array(), id);
+      if (readback.type === "entity") {
+        device.payload = readback.entity.payload; device.updated_at = Date.now();
+        await this.ctx.storage.put("rustplus_devices", devices);
+      }
+      return Response.json({ updated: true, devices });
+    }
+
+    if (path === "devices/remove") {
+      if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+      let payload; try { payload = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+      const id = Number(payload?.id);
+      const devices = (await this.ctx.storage.get("rustplus_devices") || []).filter(device => Number(device.id) !== id);
+      await this.ctx.storage.put("rustplus_devices", devices); this.lastDevices = devices;
+      return Response.json({ removed: true, devices });
+    }
+
     if (path === "chat/send") {
       if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
       let payload;
@@ -1254,6 +1357,20 @@ export class RustPlusCloud {
       }
     }
 
+    if (path === "devices") return Response.json({ devices: await this.ctx.storage.get("rustplus_devices") || [] });
+    if (path === "time") {
+      const result = await this.sendRequest(9);
+      if (result.type === "error") return Response.json({ error: result.error }, { status: 502 });
+      this.lastTime = result.time || this.lastTime;
+      return Response.json(this.lastTime || {});
+    }
+    const entityMatch = path.match(/^entity\/(\d{1,10})$/);
+    if (entityMatch) {
+      const id = Number(entityMatch[1]);
+      const result = await this.sendRequest(14, new Uint8Array(), id);
+      if (result.type !== "entity") return Response.json({ error: "entity_not_found" }, { status: 404 });
+      return Response.json(result.entity);
+    }
     const field = ({ info: 8, team: 11, map: 10, markers: 18, chat: 12 })[path];
     if (!field) return Response.json({ error: "not_found" }, { status: 404 });
     try {
