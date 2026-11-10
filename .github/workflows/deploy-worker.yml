@@ -1,3 +1,4 @@
+# Deployment workflow; rerun after repository secrets are configured.
 name: Deploy Cloudflare Worker
 
 on:
