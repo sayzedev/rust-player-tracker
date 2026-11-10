@@ -412,14 +412,23 @@
       if (data.companion_connected) {
         stateEl.textContent = 'Companion подключён';
         dot.style.background = '#58c78b';
-      } else if (data.auth_token_configured) {
-        stateEl.textContent = 'Токен сохранён · Companion не подключён';
-        dot.style.background = '#e87532';
-      } else {
-        stateEl.textContent = 'Rust+ ещё не настроен';
+      } else if (data.backend_configured === false) {
+        stateEl.textContent = 'Companion-сервис не запущен';
         dot.style.background = '#e36b6b';
+      } else if (data.state === 'connecting') {
+        stateEl.textContent = 'Подключаемся к Rust+…';
+        dot.style.background = '#e87532';
+      } else if (data.state === 'pairing_data_missing' || data.state === 'not_configured') {
+        stateEl.textContent = 'Нужна привязка Rust+';
+        dot.style.background = '#e87532';
+      } else if (data.state === 'error' || data.state === 'disconnected') {
+        stateEl.textContent = 'Нет соединения с Rust+';
+        dot.style.background = '#e36b6b';
+      } else {
+        stateEl.textContent = 'Companion ожидает подключения';
+        dot.style.background = '#e87532';
       }
-      messageEl.textContent = data.message || ('Состояние: ' + (data.companion_connected ? 'подключён' : 'не подключён'));
+      messageEl.textContent = data.message || data.error || ('Состояние: ' + (data.state || 'неизвестно'));
       if (data.companion_connected) loadRustPlusData();
     } catch (error) {
       stateEl.textContent = 'Не удалось проверить Rust+';
