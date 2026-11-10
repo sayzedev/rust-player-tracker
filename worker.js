@@ -889,6 +889,7 @@ export class RustPlusCloud {
         this.connectedAt = new Date().toISOString();
         this.lastError = null;
         this.sendRequest(8).catch(() => {});
+        this.primeRustPlusDevices().catch(e => { this.lastError = String(e?.message || e).slice(0, 180); });
         // Prime the alive snapshot shortly after connecting, then poll every 30 seconds.
         this.schedule(5000);
       });
@@ -975,6 +976,24 @@ export class RustPlusCloud {
     }
   }
 
+  async primeRustPlusDevices() {
+    const devices = await this.ctx.storage.get("rustplus_devices") || [];
+    for (const device of devices.slice(0, 30)) {
+      if (!this.ws || this.ws.readyState !== 1) break;
+      try {
+        const result = await this.sendRequest(14, new Uint8Array(), Number(device.id));
+        if (result.type === "entity") {
+          device.type = result.entity.type === 1 ? "switch" : result.entity.type === 2 ? "alarm" : result.entity.type === 3 ? "storage" : device.type;
+          device.payload = result.entity.payload;
+          device.updated_at = Date.now();
+        }
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+    await this.ctx.storage.put("rustplus_devices", devices);
+    this.lastDevices = devices;
+  }
+
   async appendChatMessage(message) {
     const entry = {
       steamid: String(message?.steamid || ""),
@@ -1028,7 +1047,7 @@ export class RustPlusCloud {
           reply = "⏱ Таймер запущен на " + seconds + " сек. Отправлю: " + message;
         }
       } else if (command === "!help") {
-        reply = "Rust Bot: !help !p !team !pop !map !timer";
+        reply = "Rust Bot: !help !p !team !pop !map !time !switch ID on/off !timer";
       } else if (command === "!p" || command === "!online" || command === "!team" || command === "!who") {
         const result = await this.sendRequest(11);
         if (result.type !== "team") reply = "Не удалось получить состав команды.";
@@ -1051,6 +1070,22 @@ export class RustPlusCloud {
         const result = await this.sendRequest(8);
         const info = result.info || {};
         reply = ("Карта: " + (info.map || "открой вкладку Rust+ на сайте") + ". Метки и изображение доступны на сайте.").slice(0, 155);
+      } else if (command === "!time") {
+        const result = await this.sendRequest(9);
+        const value = Number(result.time?.current_time);
+        const hours = Math.floor(value), minutes = Math.floor((value - hours) * 60);
+        reply = Number.isFinite(value) ? ("Время на сервере: " + String(hours).padStart(2,"0") + ":" + String(minutes).padStart(2,"0")) : "Не удалось получить игровое время.";
+      } else if (command === "!switch") {
+        const args = text.slice(commandMatch.index + commandMatch[0].length).trim().split(/\\s+/);
+        const id = Number(args[0]), desired = String(args[1] || "").toLowerCase();
+        const devices = await this.ctx.storage.get("rustplus_devices") || [];
+        const device = devices.find(item => Number(item.id) === id && item.type === "switch");
+        if (!device || !["on","off"].includes(desired)) reply = "Формат: !switch ID on/off. Сначала добавь Smart Switch на сайте.";
+        else {
+          const result = await this.sendRequest(15, rpEncodeFlag(desired === "on"), id);
+          if (result.type === "error") throw new Error(result.error);
+          reply = "Smart Switch " + String(device.name || id) + ": " + (desired === "on" ? "включён" : "выключен") + ".";
+        }
       } else {
         reply = "Неизвестная команда. Напиши !help.";
       }
