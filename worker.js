@@ -626,38 +626,68 @@ export class RustPlusCloud {
     }
 
     const candidates = [];
-    for (const item of events) {
-      let data = item?.data ?? item?.Data;
-      if (typeof data === "string") {
-        try { data = JSON.parse(data); } catch { continue; }
-      }
-      if (!data || typeof data !== "object") continue;
+    for (let index = 0; index < events.length; index++) {
+      const item = events[index];
+      const parseObject = value => {
+        if (typeof value !== "string") return value && typeof value === "object" ? value : {};
+        try {
+          const parsed = JSON.parse(value);
+          return parsed && typeof parsed === "object" ? parsed : {};
+        } catch { return {}; }
+      };
 
-      const playerId = String(data.playerId ?? data.PlayerId ?? item?.playerId ?? steamId);
-      const playerToken = String(data.playerToken ?? data.PlayerToken ?? item?.playerToken ?? "");
-      const serverId = String(data.id ?? data.serverId ?? data.ServerId ?? item?.serverId ?? item?.ServerId ?? "");
-      const type = String(data.type ?? data.Type ?? "").toLowerCase();
-      const channel = Number(item?.channel ?? item?.Channel ?? 0);
-      const isPairing = channel === 1001 || type === "server" || type === "entity" ||
-        String(item?.body ?? item?.Body ?? "").toLowerCase().includes("pair");
-      if (!isPairing || playerId !== steamId || !/^-?\d+$/.test(playerToken) ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serverId)) continue;
+      // Support flattened history records and nested FCM Data.Body payloads.
+      const rawData = parseObject(item?.data ?? item?.Data ?? item);
+      const envelope = parseObject(rawData?.Data ?? rawData?.data ?? rawData);
+      const body = parseObject(
+        envelope?.Body ?? envelope?.body ??
+        rawData?.Body ?? rawData?.body ?? envelope
+      );
 
-      const dateText = String(item?.date ?? item?.Date ?? "");
+      const playerId = String(
+        body.PlayerId ?? body.playerId ??
+        envelope.PlayerId ?? envelope.playerId ??
+        item?.playerId ?? item?.PlayerId ?? ""
+      );
+      const playerToken = String(
+        body.PlayerToken ?? body.playerToken ??
+        envelope.PlayerToken ?? envelope.playerToken ??
+        item?.playerToken ?? item?.PlayerToken ?? ""
+      );
+      const serverId = String(
+        body.Id ?? body.id ??
+        envelope.ServerId ?? envelope.serverId ??
+        item?.serverId ?? item?.ServerId ?? ""
+      );
+      const type = String(body.Type ?? body.type ?? envelope.Type ?? envelope.type ?? "").toLowerCase();
+      const channelValue = envelope.ChannelId ?? envelope.channelId ??
+        item?.channel ?? item?.Channel ?? "";
+      const channel = String(channelValue).toLowerCase();
+      const isPairing = channel === "pairing" || channel === "1001" ||
+        type === "server" || type === "entity";
+
+      // Missing playerId must not silently default to the signed-in account.
+      if (!isPairing || playerId !== steamId || !/^-?\\d+$/.test(playerToken) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId) ||
+          /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(serverId)) continue;
+
+      const dateText = String(
+        item?.date ?? item?.Date ?? item?.notificationDate ?? item?.NotificationDate ??
+        envelope?.date ?? envelope?.Date ?? item?.sentAt ?? item?.SentAt ?? ""
+      );
       const dateValue = Date.parse(dateText);
       candidates.push({
         serverId,
         playerId,
         playerToken,
-        name: String(data.name ?? data.Name ?? item?.title ?? item?.Title ?? "Rust сервер"),
-        ip: String(data.ip ?? data.Ip ?? ""),
-        port: Number(data.port ?? data.Port ?? 0),
-        notificationId: String(item?.notificationId ?? item?.NotificationId ?? ""),
+        name: String(body.Name ?? body.name ?? envelope.Name ?? envelope.name ?? item?.title ?? item?.Title ?? "Rust сервер"),
+        ip: String(body.Ip ?? body.ip ?? envelope.Ip ?? envelope.ip ?? ""),
+        port: Number(body.Port ?? body.port ?? envelope.Port ?? envelope.port ?? 0),
+        notificationId: String(item?.notificationId ?? item?.NotificationId ?? item?.persistentId ?? item?.PersistentId ?? ""),
         pairedAt: Number.isFinite(dateValue) ? new Date(dateValue).toISOString() : null,
-        sortTime: Number.isFinite(dateValue) ? dateValue : Number(item?.notificationId ?? item?.NotificationId ?? 0)
+        sortTime: Number.isFinite(dateValue) ? dateValue : -index
       });
     }
-
     candidates.sort((a, b) => b.sortTime - a.sortTime);
     const pairing = candidates[0];
     if (!pairing) {
@@ -955,9 +985,11 @@ export class RustPlusCloud {
           ? "Facepunch Companion подключён к серверу Rust."
           : !configured
             ? (authToken ? "Авторизация сохранена. Нажми Pair with Server в игре и синхронизируй историю привязок." : "Сначала подключи Rust+ через Facepunch.")
-            : this.state === "connecting"
-              ? "Облачный Companion подключается к серверу Rust+."
-              : this.lastError || "Облачный Companion пока не подключён.",
+            : this.state === "pairing_error"
+              ? "Сервер принял Companion-соединение, но отклонил playerToken. Нужна свежая привязка Pair with Server."
+              : this.state === "connecting"
+                ? "Облачный Companion подключается к серверу Rust+."
+                : this.lastError || "Облачный Companion пока не подключён.",
         free_tier_note: "Постоянное соединение и периодическая проверка истории расходуют дневной лимит Cloudflare Free."
       });
     }
