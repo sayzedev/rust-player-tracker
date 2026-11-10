@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111318">
+  <title>Rust Player Tracker</title>
+  <style>
+    :root{color-scheme:dark;--bg:#101216;--panel:#191d24;--panel2:#202630;--line:#303844;--text:#f2f4f7;--muted:#9ba5b2;--orange:#e87532;--green:#58c78b;--red:#e36b6b}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 0%,#302116 0,transparent 34%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    .wrap{width:min(1080px,calc(100% - 32px));margin:0 auto;padding:34px 0 60px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px}
+    .brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f08a43,#a84422);display:grid;place-items:center;font-size:23px;font-weight:900}
+    h1{font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:-.7px}.sub{color:var(--muted);font-size:13px}
+    .tag{border:1px solid #5a3b2b;background:#2b201a;color:#f2a16e;padding:6px 10px;border-radius:999px;font-size:12px}
+    .hero{margin-bottom:24px}.hero h2{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:0 0 10px}.hero p{color:var(--muted);margin:0;max-width:650px}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:linear-gradient(180deg,#1b2028,#171b21);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 12px 35px #0002}
+    .card h3{font-size:17px;margin:0 0 5px}.hint{font-size:13px;color:var(--muted);margin:0 0 16px}
+    label{display:block;font-size:13px;color:#c4ccd5;margin:0 0 7px}input{width:100%;background:#10141a;border:1px solid #394351;color:var(--text);border-radius:10px;padding:12px 13px;font:inherit;outline:none}input:focus{border-color:var(--orange);box-shadow:0 0 0 3px #e8753220}
+    .field{margin-bottom:13px}.actions{display:flex;gap:9px;flex-wrap:wrap}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:700;font-size:14px;cursor:pointer}.primary{background:var(--orange);color:#1a100b}.secondary{background:#2a313c;color:#e6ebf1}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .notice{display:none;margin-top:12px;padding:10px 12px;border-radius:9px;font-size:13px}.notice.error{display:block;background:#3a2022;color:#ffb5b5;border:1px solid #663638}.notice.ok{display:block;background:#193127;color:#a8efc7;border:1px solid #285b43}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}.stat{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:12px}.stat strong{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}
+    .list{margin-top:18px}.list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.count{color:var(--muted);font-size:12px}
+    .player{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#11161c;border:1px solid #2b333e;border-radius:12px;padding:13px;margin-top:9px}.player-main{min-width:0}.player-name{font-weight:700;overflow-wrap:anywhere}.player-id{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.player-actions{display:flex;gap:7px;flex-shrink:0}.link{color:#f1a06d;text-decoration:none;font-size:13px}.link:hover{text-decoration:underline}
+    .empty{padding:24px 12px;text-align:center;color:var(--muted);border:1px dashed #394351;border-radius:12px;font-size:13px}
+    .server-status{display:flex;align-items:center;gap:9px;margin:14px 0 8px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:#8b929c;display:inline-block}
+    .server-box{background:#11161c;border:1px solid #2b333e;border-radius:11px;padding:14px;margin-top:14px}.server-box p{color:var(--muted);font-size:13px;margin:8px 0 0}
+    .smallprint{color:var(--muted);font-size:12px;margin-top:18px}.footer{margin-top:24px;color:#77818d;font-size:12px;text-align:center}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}.wrap{padding-top:22px}header{align-items:flex-start}.tag{font-size:11px}.card{padding:16px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="brand"><div class="logo">R</div><div><h1>Rust Player Tracker</h1><div class="sub">Отслеживание Steam-профилей и серверов Rust</div></div></div>
+      <span class="tag">BETA · TEST MODE</span>
+    </header>
+    <section class="hero">
+      <h2>Следи за игроками Rust<br>в одном месте</h2>
+      <p>Добавляй Steam-профили в список, быстро открывай их страницы и подготавливай мониторинг серверов.</p>
+    </section>
+    <section class="grid">
+      <div class="card">
+        <h3>Добавить игрока</h3>
+        <p class="hint">Вставь SteamID64 или ссылку на профиль Steam.</p>
+        <div class="field"><label for="steamInput">Steam ID / ссылка</label><input id="steamInput" placeholder="Например, 76561199440875097" autocomplete="off" inputmode="text"></div>
+        <div class="actions"><button class="btn primary" id="addBtn">Добавить игрока</button><button class="btn secondary" id="demoBtn">Проверить пример</button></div>
+        <div id="notice" class="notice" role="status"></div>
+        <div class="list">
+          <div class="list-head"><h3>Мои игроки</h3><span class="count" id="count">0 игроков</span></div>
+          <div id="players"><div class="empty">Пока нет игроков. Добавь Steam ID выше.</div></div>
+        </div>
+      </div>
+      <aside>
+        <div class="card">
+          <h3>Обзор</h3><p class="hint">Текущий список отслеживания</p>
+          <div class="stats"><div class="stat"><strong id="totalPlayers">0</strong><span>Добавлено игроков</span></div><div class="stat"><strong>—</strong><span>Сейчас онлайн</span></div></div>
+        </div>
+        <div class="card" style="margin-top:18px">
+          <h3>Мониторинг сервера Rust</h3>
+          <p class="hint">Подготовка подключения сервера</p>
+          <div class="field"><label for="serverInput">IP или адрес сервера</label><input id="serverInput" placeholder="Например, 123.45.67.89:28015"></div>
+          <button class="btn secondary" id="saveServer">Сохранить адрес</button>
+          <div class="server-box">
+            <div class="server-status"><span class="dot"></span><span id="serverState">Статус пока неизвестен</span></div>
+            <p id="serverInfo">Адрес сервера не добавлен.</p>
+          </div>
+          <p class="smallprint">Для получения реального онлайна игроков, статистики и статуса сервера нужно подключить серверную часть к BattleMetrics API. Секретный API-токен нельзя размещать в публичном HTML.</p>
+        </div>
+      </aside>
+    </section>
+    <div class="footer">Rust Player Tracker · Данные списка сохраняются в этом браузере</div>
+  </main>
+<script>
+(() => {
+  const STORAGE_KEY = 'rust-player-tracker.players.v1';
+  const SERVER_KEY = 'rust-player-tracker.server.v1';
+  const input = document.getElementById('steamInput');
+  const notice = document.getElementById('notice');
+  const playersEl = document.getElementById('players');
+  const countEl = document.getElementById('count');
+  let players = read(STORAGE_KEY, []);
+  let server = localStorage.getItem(SERVER_KEY) || '';
+  document.getElementById('serverInput').value = server;
+
+  function read(key, fallback) {
+    try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value : fallback; }
+    catch { return fallback; }
+  }
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(players)); render(); }
+  function show(message, type) { notice.textContent = message; notice.className = 'notice ' + type; }
+  function extractId(value) {
+    const raw = value.trim();
+    const profileMatch = raw.match(/steamcommunity\.com\/profiles\/(\d{17})/i);
+    const id = profileMatch ? profileMatch[1] : raw;
+    if (!/^\d{17}$/.test(id)) return null;
+    const numeric = BigInt(id);
+    const base = 76561197960265728n;
+    if (numeric < base || numeric > 76561202255233023n) return null;
+    return id;
+  }
+  function addPlayer(value) {
+    const id = extractId(value);
+    if (!id) { show('Не удалось распознать SteamID64. Вставь 17-значный Steam ID или ссылку вида steamcommunity.com/profiles/…', 'error'); return; }
+    if (players.some(p => p.id === id)) { show('Этот игрок уже есть в списке.', 'error'); return; }
+    players.unshift({id, addedAt: Date.now()});
+    save(); input.value = ''; show('Игрок добавлен. Ссылка на Steam-профиль готова.', 'ok');
+  }
+  function render() {
+    document.getElementById('totalPlayers').textContent = players.length;
+    countEl.textContent = players.length + (players.length === 1 ? ' игрок' : players.length >= 2 && players.length <= 4 ? ' игрока' : ' игроков');
+    playersEl.replaceChildren();
+    if (!players.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Пока нет игроков. Добавь Steam ID выше.'; playersEl.append(empty); return; }
+    players.forEach(player => {
+      const row = document.createElement('div'); row.className = 'player';
+      const main = document.createElement('div'); main.className = 'player-main';
+      const name = document.createElement('div'); name.className = 'player-name'; name.textContent = 'Steam игрок';
+      const id = document.createElement('div'); id.className = 'player-id'; id.textContent = player.id;
+      const actions = document.createElement('div'); actions.className = 'player-actions';
+      const link = document.createElement('a'); link.className = 'link'; link.href = 'https://steamcommunity.com/profiles/' + player.id; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Steam ↗';
+      const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.textContent = 'Удалить'; remove.style.padding = '7px 9px'; remove.style.fontSize = '12px';
+      remove.addEventListener('click', () => { players = players.filter(p => p.id !== player.id); save(); });
+      main.append(name, id); actions.append(link, remove); row.append(main, actions); playersEl.append(row);
+    });
+  }
+  document.getElementById('addBtn').addEventListener('click', () => addPlayer(input.value));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(input.value); });
+  document.getElementById('demoBtn').addEventListener('click', () => { input.value = '76561199440875097'; addPlayer(input.value); });
+  document.getElementById('saveServer').addEventListener('click', () => {
+    server = document.getElementById('serverInput').value.trim();
+    localStorage.setItem(SERVER_KEY, server);
+    document.getElementById('serverState').textContent = 'Статус пока неизвестен';
+    document.getElementById('serverInfo').textContent = server ? 'Сохранён адрес: ' + server + '. Для проверки подключения требуется API-сервис.' : 'Адрес сервера не добавлен.';
+  });
+  if (server) document.getElementById('serverInfo').textContent = 'Сохранён адрес: ' + server + '. Для проверки подключения требуется API-сервис.';
+  render();
+})();
+</script>
+</body>
+</html>
